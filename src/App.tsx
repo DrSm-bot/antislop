@@ -299,9 +299,9 @@ function App() {
                 disabled={reports.length === 0}
                 aria-label="Download a ZIP containing JSON reports for all checked assets"
               >
-                Download JSON Report Pack
+                JSON Pack
               </button>
-              <span className="action-hint">ZIP with summary and one JSON report per asset</span>
+              <span className="action-hint">ZIP archive for automation</span>
             </div>
             <div>
               <button
@@ -311,9 +311,9 @@ function App() {
                 disabled={reports.length === 0}
                 aria-label="Download a single HTML report for all checked assets"
               >
-                Download Full HTML Report
+                Full HTML
               </button>
-              <span className="action-hint">Single printable HTML report covering the whole batch</span>
+              <span className="action-hint">Printable batch report</span>
             </div>
             {queueProgress.failed > 0 || queueProgress.skipped > 0 ? (
               <span>
