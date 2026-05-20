@@ -215,6 +215,37 @@
   line-height: 1.55;
 }
 
+.result-badge {
+  display: inline-flex;
+  width: fit-content;
+  align-items: center;
+  min-height: 30px;
+  margin-bottom: 10px;
+  padding: 0 10px;
+  border: 1px solid #9aa89b;
+  border-radius: 999px;
+  font-size: 13px;
+  font-weight: 900;
+}
+
+.result-badge.clear {
+  border-color: #7aa673;
+  color: #18521f;
+  background: #e7f4e4;
+}
+
+.result-badge.found {
+  border-color: #b87070;
+  color: #6b1d1d;
+  background: #fae8e8;
+}
+
+.result-badge.warning {
+  border-color: #b49b63;
+  color: #5d4310;
+  background: #f8efda;
+}
+
 .status-callout {
   display: grid;
   gap: 4px;

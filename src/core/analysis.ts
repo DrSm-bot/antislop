@@ -88,7 +88,7 @@ export type AntiSlopCertificateV1 = {
     version: string
   }
   result: {
-    status: ReturnType<typeof reportStatus>
+    status: ReportStatus
     wording: string
   }
   file: {
@@ -106,7 +106,7 @@ export type AntiSlopCertificateV1 = {
   limitations: string[]
 }
 
-export type ReportStatus = ReturnType<typeof reportStatus>
+export type ReportStatus = 'AI markers found' | 'No AI markers found' | 'Could not complete check'
 
 export type ReportStatusCounts = Record<ReportStatus, number>
 
@@ -470,26 +470,39 @@ export async function analyzeBytes(input: AnalysisInput): Promise<AssetReport> {
   }
 }
 
-export function reportStatus(report: AssetReport) {
-  if (report.metadata.state === 'found') return 'Known marker found'
-  if (report.checks.some((check) => check.state === 'found')) return 'Known marker found'
-  if (report.checks.some((check) => check.state === 'warning')) return 'No known marker detected'
-  if (report.metadata.state === 'warning') return 'No known marker detected'
-  return 'Clean local scan'
+export function reportStatus(report: AssetReport): ReportStatus {
+  if (report.metadata.state === 'found') return 'AI markers found'
+  if (report.checks.some((check) => check.state === 'found')) return 'AI markers found'
+  if (report.checks.length === 0 && report.metadata.presence === 'missing') return 'Could not complete check'
+  return 'No AI markers found'
+}
+
+export function markerEvidenceSummary(report: AssetReport) {
+  const evidence = [
+    ...report.metadata.findings
+      .map((finding) => finding.matchedGeneratorTerm)
+      .filter((term): term is string => Boolean(term)),
+    ...report.checks.filter((check) => check.state === 'found').map((check) => check.label),
+  ]
+
+  return [...new Set(evidence)]
 }
 
 export function resultWording(report: AssetReport) {
   const status = reportStatus(report)
 
-  if (status === 'Known marker found') {
-    return 'Known AI-generation or provenance marker text was found in the local scan.'
+  if (status === 'AI markers found') {
+    const evidence = markerEvidenceSummary(report)
+    return evidence.length
+      ? `Evidence of generative AI use was found in the local scan. Signals: ${evidence.join(', ')}.`
+      : 'Evidence of generative AI use was found in the local scan.'
   }
 
-  if (status === 'No known marker detected') {
-    return 'No known AI-generation marker was detected, but one or more checks remain limited or inconclusive.'
+  if (status === 'No AI markers found') {
+    return 'AntiSlop checked metadata, C2PA and Content Credentials markers, known provider strings, and supported local signals. No supported generative AI markers were found.'
   }
 
-  return 'No known AI-generation marker was detected by the current local checks.'
+  return 'AntiSlop could not complete enough local checks for a marker result.'
 }
 
 export function certificatePreview(report: AssetReport): CertificatePreview {
@@ -563,9 +576,9 @@ export function summarizeReportStatuses(reports: AssetReport[]): ReportStatusCou
       return counts
     },
     {
-      'Known marker found': 0,
-      'No known marker detected': 0,
-      'Clean local scan': 0,
+      'AI markers found': 0,
+      'No AI markers found': 0,
+      'Could not complete check': 0,
     },
   )
 }
