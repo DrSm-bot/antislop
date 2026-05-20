@@ -1,11 +1,14 @@
 import {
   buildCertificate,
+  buildReportPackageEntries,
   certificateFileName,
   decodeTextSample,
   analyzeBytes,
   reportStatus,
+  summarizeReportStatuses,
   stringifyCertificate,
 } from './analysis.ts'
+import { createZipArchive, reportZipFileName } from '../lib/zipExport.ts'
 import { emptyC2paResult, type C2paVerificationResult } from './c2pa.ts'
 
 function bytesFromText(value: string) {
@@ -213,6 +216,45 @@ assert(
     fileName: ' test image @ 2x.png ',
   }) === 'test-image-2x.png.antislop-certificate-v1.json',
   'certificate filename is stable and sanitized',
+)
+
+const summaryCounts = summarizeReportStatuses([generatorMetadata, stripped, validC2pa])
+assert(summaryCounts['Known marker found'] === 1, 'summary counts found reports')
+assert(summaryCounts['No known marker detected'] === 2, 'summary counts limited reports')
+assert(summaryCounts['Clean local scan'] === 0, 'summary includes clean reports even when none are present')
+
+const packageEntries = buildReportPackageEntries([
+  { ...generatorMetadata, fileName: 'duplicate.png' },
+  { ...validC2pa, fileName: 'duplicate.png' },
+], '2026-05-20T12:00:00.000Z')
+assert(packageEntries.length === 3, 'package contains a summary and every report')
+assert(packageEntries[0]?.path === 'antislop-summary.json', 'package includes a summary manifest')
+assert(
+  JSON.parse(packageEntries[0]?.contents ?? '{}').totalReports === 2,
+  'summary manifest counts reports',
+)
+assert(
+  packageEntries[1]?.path === 'duplicate.png.antislop-certificate-v1.json',
+  'package uses certificate filenames',
+)
+assert(
+  packageEntries[2]?.path === 'duplicate.png.antislop-certificate-v1-002.json',
+  'package keeps duplicate filenames distinct',
+)
+assert(
+  JSON.parse(packageEntries[1]?.contents ?? '{}').schema === 'antislop.certificate',
+  'package entry contains certificate JSON',
+)
+
+const zipArchive = createZipArchive(packageEntries)
+assert(zipArchive[0] === 0x50 && zipArchive[1] === 0x4b, 'ZIP archive starts with local header')
+assert(
+  new TextDecoder().decode(zipArchive).includes('duplicate.png.antislop-certificate-v1.json'),
+  'ZIP archive includes report filenames',
+)
+assert(
+  reportZipFileName(new Date('2026-05-20T12:00:00.000Z')) === 'antislop-reports-2026-05-20.zip',
+  'ZIP filename is stable by date',
 )
 
 console.log('analysis core tests passed')

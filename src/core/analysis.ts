@@ -106,6 +106,30 @@ export type AntiSlopCertificateV1 = {
   limitations: string[]
 }
 
+export type ReportStatus = ReturnType<typeof reportStatus>
+
+export type ReportStatusCounts = Record<ReportStatus, number>
+
+export type ReportPackageEntry = {
+  path: string
+  contents: string
+}
+
+export type ReportPackageManifestV1 = {
+  schema: 'antislop.reportPackage'
+  schemaVersion: 1
+  generatedAt: string
+  totalReports: number
+  statusCounts: ReportStatusCounts
+  reports: Array<{
+    fileName: string
+    reportPath: string
+    status: ReportStatus
+    sha256: string
+    checkedAt: string
+  }>
+}
+
 export type AnalysisInput = {
   bytes: ArrayBuffer
   fileName: string
@@ -526,4 +550,85 @@ export function certificateFileName(report: AssetReport) {
     .replace(/^-+|-+$/g, '')
 
   return `${safeName || 'asset'}.antislop-certificate-v1.json`
+}
+
+export function summarizeReportStatuses(reports: AssetReport[]): ReportStatusCounts {
+  return reports.reduce<ReportStatusCounts>(
+    (counts, report) => {
+      counts[reportStatus(report)] += 1
+      return counts
+    },
+    {
+      'Known marker found': 0,
+      'No known marker detected': 0,
+      'Clean local scan': 0,
+    },
+  )
+}
+
+export function buildReportPackageEntries(
+  reports: AssetReport[],
+  generatedAt = new Date().toISOString(),
+): ReportPackageEntry[] {
+  const usedPaths = new Set<string>()
+
+  const certificateEntries = reports.map((report, index) => {
+    const baseName = certificateFileName(report)
+    const path = uniquePackagePath(baseName, usedPaths, index)
+    usedPaths.add(path)
+
+    return {
+      report,
+      entry: {
+        path,
+        contents: stringifyCertificate(buildCertificate(report)),
+      },
+    }
+  })
+
+  const manifest = buildReportPackageManifest(
+    certificateEntries.map(({ report, entry }) => ({ report, path: entry.path })),
+    generatedAt,
+  )
+
+  return [
+    {
+      path: 'antislop-summary.json',
+      contents: `${JSON.stringify(manifest, null, 2)}\n`,
+    },
+    ...certificateEntries.map(({ entry }) => entry),
+  ]
+}
+
+function buildReportPackageManifest(
+  reports: Array<{ report: AssetReport; path: string }>,
+  generatedAt: string,
+): ReportPackageManifestV1 {
+  return {
+    schema: 'antislop.reportPackage',
+    schemaVersion: 1,
+    generatedAt,
+    totalReports: reports.length,
+    statusCounts: summarizeReportStatuses(reports.map(({ report }) => report)),
+    reports: reports.map(({ report, path }) => ({
+      fileName: report.fileName,
+      reportPath: path,
+      status: reportStatus(report),
+      sha256: report.hash,
+      checkedAt: report.checkedAt,
+    })),
+  }
+}
+
+function uniquePackagePath(baseName: string, usedPaths: Set<string>, index: number) {
+  if (!usedPaths.has(baseName)) return baseName
+
+  const suffix = `-${String(index + 1).padStart(3, '0')}`
+  const jsonSuffix = '.json'
+
+  if (baseName.endsWith(jsonSuffix)) {
+    return `${baseName.slice(0, -jsonSuffix.length)}${suffix}${jsonSuffix}`
+  }
+
+  return `${baseName}${suffix}`
 }
