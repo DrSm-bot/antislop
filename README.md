@@ -1,19 +1,25 @@
 # AntiSlop
 
-AntiSlop is a private, browser-based asset marker check for game artists and small teams.
+AntiSlop is a private, browser-based asset marker check for artists, developers, and small teams.
 
-It scans image files locally for known AI provenance markers and exports a report that says exactly what was checked. The goal is evidence, not magic: AntiSlop can report that no supported marker was detected, but it cannot prove that an image was human-made.
+It checks image assets locally for known AI provenance markers and exports reports that say exactly what was checked. The goal is evidence, not magic: AntiSlop can report that no supported marker was detected, but it cannot prove that an image was human-made.
 
-## MVP Scope
+## Current Features
 
 - Local image drop zone, no upload path.
+- Batch queue for multiple image assets.
+- Selectable asset results with per-asset removal.
+- Guarded new-report action to clear the current queue.
 - SHA-256 hash for the exact checked file.
 - Browser thumbnail and file summary.
 - Readable metadata scan for common generator strings.
 - C2PA / Content Credentials adapter with browser WASM validation where supported.
 - Explicit unsupported status for vendor-only invisible watermark checks such as SynthID.
+- Visible result buckets: `AI markers found`, `No AI markers found`, and `Could not complete check`.
 - JSON report export for archives and automation.
+- JSON report pack ZIP for all scanned assets.
 - Self-contained single-asset and full-batch HTML reports with print-friendly styling.
+- About / Methods and Privacy section explaining the local-first approach.
 
 ## C2PA Capability
 
@@ -41,12 +47,12 @@ Limitations:
 - `valid` means the local C2PA library returned a `Valid` or `Trusted` manifest
   store state. It is still not proof of human authorship.
 
-## Planned Checks
+## Remaining Work
 
 - Broader C2PA fixture coverage with real signed public test assets.
-- EXIF, XMP, and IPTC parsing with structured field output.
-- Batch reports and ZIP export for project folders.
-- Batch HTML report pack export.
+- More public expected snapshots where fixture licensing allows.
+- UI verification with screenshots across desktop and mobile viewports.
+- Optional report-pack improvements, such as including HTML reports in ZIP exports.
 - Optional research watermark modules where an offline detector is legally and technically available.
 
 ## Language Policy
@@ -58,6 +64,7 @@ Preferred wording:
 - "Known AI provenance markers checked locally."
 - "No supported AI marker was detected."
 - "This report does not prove human authorship."
+- "Check image assets for known AI provenance markers."
 
 Avoid:
 
@@ -66,31 +73,34 @@ Avoid:
 
 ## Development
 
-\`\`\`bash
+```bash
 npm install
 npm run dev
-\`\`\`
+```
 
 Analyze documented local fixtures:
 
-\`\`\`bash
+```bash
 npm run fixtures:analyze
 # or
 npm run fixtures:analyze -- --manifest test-corpus/manifest.local.json --write
-\`\`\`
+```
 
 See [docs/test-corpus.md](docs/test-corpus.md) for fixture layout, privacy rules, and expected snapshot guidance.
 
 Build for Cloudflare Pages:
 
-\`\`\`bash
+```bash
+npm run lint
+npm test
 npm run build
-\`\`\`
+```
 
 Cloudflare Pages settings:
 
-- Build command: \`npm run build\`
-- Output directory: \`dist\`
+- Build command: `npm run build`
+- Output directory: `dist`
+- Node version: 22
 
 ## License
 
