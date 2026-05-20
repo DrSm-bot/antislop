@@ -178,6 +178,16 @@ assert(
   'generator field records matched term',
 )
 
+const googleMetadata = await reportForBytes(
+  jpegWithApp1(xmpPacket('Made with Google AI trainedAlgorithmicMedia')),
+)
+assert(googleMetadata.metadata.state === 'found', 'Google AI metadata marker is flagged')
+
+const midjourneyMetadata = await reportForBytes(
+  jpegWithApp1(xmpPacket('space station asset --v 7 Job ID: abc123')),
+)
+assert(midjourneyMetadata.metadata.state === 'found', 'Midjourney job metadata marker is flagged')
+
 const certificate = buildCertificate(generatorMetadata)
 assert(certificate.schema === 'antislop.certificate', 'certificate has a stable schema name')
 assert(certificate.schemaVersion === 1, 'certificate has a versioned schema')
