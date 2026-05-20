@@ -36,10 +36,11 @@ The MVP is complete when a user can:
 - Keep unsupported or stripped C2PA states explicit.
 - Remaining work: add committed public signed C2PA fixtures to exercise real valid/invalid manifests in CI.
 
-### 4. Certificate Export
+### 4. Report Export
 
 - Define a stable report schema.
-- Export JSON first, then add printable HTML/PDF or PNG certificate output.
+- Export JSON for archives and automation.
+- Export a self-contained, print-friendly HTML report for sharing or browser print-to-PDF.
 - Include thumbnail, SHA-256, checks performed, result wording, tool version, timestamp, and limitations.
 - Avoid any statement that claims proof of human authorship.
 

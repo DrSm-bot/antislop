@@ -3,8 +3,10 @@ import { analyzeImageFile } from './lib/browserAnalysis'
 import { createReportZipBlob, reportZipFileName } from './lib/zipExport'
 import {
   buildCertificate,
+  buildHtmlReport,
   certificateFileName,
   formatBytes,
+  htmlReportFileName,
   reportStatus,
   resultWording,
   summarizeReportStatuses,
@@ -47,6 +49,18 @@ function statusBadgeLabel(status: ReportStatus | null) {
 function pauseForPaint() {
   return new Promise<void>((resolve) => {
     window.setTimeout(resolve, 0)
+  })
+}
+
+async function previewUrlToDataUrl(previewUrl: string) {
+  const response = await fetch(previewUrl)
+  const blob = await response.blob()
+
+  return new Promise<string>((resolve, reject) => {
+    const reader = new FileReader()
+    reader.addEventListener('load', () => resolve(String(reader.result)))
+    reader.addEventListener('error', () => reject(reader.error))
+    reader.readAsDataURL(blob)
   })
 }
 
@@ -165,13 +179,25 @@ function App() {
     void onFiles(event.dataTransfer.files)
   }
 
-  function downloadCertificate(report: AssetReport) {
+  function downloadJsonReport(report: AssetReport) {
     const reportCertificate = buildCertificate(report)
     const blob = new Blob([stringifyCertificate(reportCertificate)], { type: 'application/json' })
     const url = URL.createObjectURL(blob)
     const anchor = document.createElement('a')
     anchor.href = url
     anchor.download = certificateFileName(report)
+    anchor.rel = 'noopener'
+    anchor.click()
+    URL.revokeObjectURL(url)
+  }
+
+  async function downloadHtmlReport(report: AssetReport) {
+    const previewDataUrl = await previewUrlToDataUrl(report.previewUrl)
+    const blob = new Blob([buildHtmlReport(report, previewDataUrl)], { type: 'text/html' })
+    const url = URL.createObjectURL(blob)
+    const anchor = document.createElement('a')
+    anchor.href = url
+    anchor.download = htmlReportFileName(report)
     anchor.rel = 'noopener'
     anchor.click()
     URL.revokeObjectURL(url)
@@ -257,7 +283,7 @@ function App() {
               >
                 Download All Reports
               </button>
-              <span className="action-hint">ZIP with summary and one JSON certificate per asset</span>
+              <span className="action-hint">ZIP with summary and one JSON report per asset</span>
             </div>
             {queueProgress.failed > 0 || queueProgress.skipped > 0 ? (
               <span>
@@ -321,20 +347,30 @@ function App() {
               <div className="report-summary">
                 <img src={activeReport.previewUrl} alt="" />
                 <div>
-                  <p className="eyebrow">Certificate Preview</p>
+                  <p className="eyebrow">Report Preview</p>
                   <span className={`result-badge ${statusTone(activeStatus)}`}>
                     {statusBadgeLabel(activeStatus)}
                   </span>
                   <h2>{activeStatus === 'AI markers found' ? 'Evidence of AI generation found' : activeStatus}</h2>
                   <p>{resultWording(activeReport)}</p>
-                  <button
-                    type="button"
-                    onClick={() => downloadCertificate(activeReport)}
-                    aria-label={`Download JSON certificate for selected asset ${activeReport.fileName}`}
-                  >
-                    Download Selected Certificate
-                  </button>
-                  <p className="action-hint">JSON report for this selected image only</p>
+                  <div className="report-actions">
+                    <button
+                      type="button"
+                      onClick={() => void downloadHtmlReport(activeReport)}
+                      aria-label={`Download HTML report for selected asset ${activeReport.fileName}`}
+                    >
+                      Download HTML Report
+                    </button>
+                    <button
+                      type="button"
+                      className="secondary-button"
+                      onClick={() => downloadJsonReport(activeReport)}
+                      aria-label={`Download JSON report for selected asset ${activeReport.fileName}`}
+                    >
+                      Download JSON Report
+                    </button>
+                  </div>
+                  <p className="action-hint">HTML is self-contained and print-friendly. JSON is for archives and automation.</p>
                 </div>
               </div>
 

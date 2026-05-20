@@ -566,7 +566,139 @@ export function certificateFileName(report: AssetReport) {
     .replace(/[^a-zA-Z0-9._-]+/g, '-')
     .replace(/^-+|-+$/g, '')
 
-  return `${safeName || 'asset'}.antislop-certificate-v1.json`
+  return `${safeName || 'asset'}.antislop-report-v1.json`
+}
+
+export function htmlReportFileName(report: AssetReport) {
+  const safeName = report.fileName
+    .trim()
+    .replace(/[^a-zA-Z0-9._-]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+
+  return `${safeName || 'asset'}.antislop-report.html`
+}
+
+function escapeHtml(value: string | number | undefined | null) {
+  return String(value ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;')
+}
+
+function stateLabel(state: CheckState) {
+  if (state === 'found') return 'Evidence found'
+  if (state === 'warning') return 'Check note'
+  return 'No marker found'
+}
+
+export function buildHtmlReport(report: AssetReport, previewDataUrl?: string) {
+  const status = reportStatus(report)
+  const tone = status === 'AI markers found' ? 'found' : status === 'Could not complete check' ? 'warning' : 'clear'
+  const checks = [
+    ...report.checks,
+    {
+      id: 'metadata',
+      label: 'EXIF / XMP / IPTC metadata',
+      state: report.metadata.state,
+      detail: report.metadata.detail,
+    } satisfies MarkerCheck,
+  ]
+  const findingRows = report.metadata.findings
+    .map(
+      (finding) => `<tr><td>${escapeHtml(finding.source.toUpperCase())}</td><td>${escapeHtml(
+        finding.category,
+      )}</td><td>${escapeHtml(finding.field)}</td><td>${escapeHtml(finding.value)}</td></tr>`,
+    )
+    .join('')
+  const checkRows = checks
+    .map(
+      (check) => `<tr><td><span class="pill ${escapeHtml(check.state)}">${escapeHtml(
+        stateLabel(check.state),
+      )}</span></td><td>${escapeHtml(check.label)}</td><td>${escapeHtml(check.detail)}</td></tr>`,
+    )
+    .join('')
+
+  return `<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>AntiSlop HTML Report - ${escapeHtml(report.fileName)}</title>
+  <style>
+    :root { color: #17201a; background: #f5f7f2; font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+    body { margin: 0; }
+    main { max-width: 920px; margin: 0 auto; padding: 32px 20px; }
+    header { display: grid; grid-template-columns: minmax(180px, 280px) 1fr; gap: 24px; align-items: center; margin-bottom: 24px; }
+    img { width: 100%; aspect-ratio: 4 / 3; object-fit: cover; border: 1px solid #ccd7cd; border-radius: 8px; background: #dce5dd; }
+    h1, h2, p { margin-top: 0; }
+    h1 { margin-bottom: 8px; font-size: 30px; letter-spacing: 0; }
+    h2 { margin: 28px 0 10px; font-size: 18px; }
+    p { color: #445247; line-height: 1.55; }
+    .eyebrow { margin-bottom: 8px; color: #5c6b60; font-size: 12px; font-weight: 900; letter-spacing: .08em; text-transform: uppercase; }
+    .badge { display: inline-flex; width: fit-content; align-items: center; min-height: 32px; margin-bottom: 12px; padding: 0 12px; border: 1px solid #9aa89b; border-radius: 999px; font-size: 14px; font-weight: 900; }
+    .badge.clear, .pill.clear { border-color: #7aa673; color: #18521f; background: #e7f4e4; }
+    .badge.found, .pill.found { border-color: #b87070; color: #6b1d1d; background: #fae8e8; }
+    .badge.warning, .pill.warning { border-color: #b49b63; color: #5d4310; background: #f8efda; }
+    .facts { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; margin: 20px 0; }
+    .fact { padding: 12px; border: 1px solid #d9e2da; border-radius: 8px; background: #fff; }
+    .fact span { display: block; color: #5c6b60; font-size: 11px; font-weight: 900; text-transform: uppercase; }
+    .fact strong { display: block; margin-top: 4px; overflow-wrap: anywhere; }
+    table { width: 100%; border-collapse: collapse; margin-bottom: 22px; background: #fff; }
+    th, td { padding: 10px; border: 1px solid #d9e2da; text-align: left; vertical-align: top; }
+    th { color: #46534b; font-size: 12px; text-transform: uppercase; }
+    .pill { display: inline-flex; padding: 4px 8px; border: 1px solid #9aa89b; border-radius: 999px; font-size: 12px; font-weight: 900; white-space: nowrap; }
+    footer { margin-top: 28px; color: #5c6b60; font-size: 12px; line-height: 1.5; }
+    @media print {
+      :root { background: #fff; }
+      main { max-width: none; padding: 0; }
+      header { grid-template-columns: 180px 1fr; break-inside: avoid; }
+      body { color: #000; }
+      .fact, table { break-inside: avoid; }
+      a { color: inherit; text-decoration: none; }
+    }
+    @media (max-width: 680px) {
+      header, .facts { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <header>
+      ${previewDataUrl ? `<img src="${escapeHtml(previewDataUrl)}" alt="Preview of ${escapeHtml(report.fileName)}">` : '<div></div>'}
+      <div>
+        <p class="eyebrow">AntiSlop HTML Report</p>
+        <span class="badge ${escapeHtml(tone)}">${escapeHtml(status === 'No AI markers found' ? 'No AI markers found' : status)}</span>
+        <h1>${escapeHtml(status === 'AI markers found' ? 'Evidence of AI generation found' : status)}</h1>
+        <p>${escapeHtml(resultWording(report))}</p>
+      </div>
+    </header>
+    <section class="facts" aria-label="File facts">
+      <div class="fact"><span>File</span><strong>${escapeHtml(report.fileName)}</strong></div>
+      <div class="fact"><span>Checked</span><strong>${escapeHtml(report.checkedAt)}</strong></div>
+      <div class="fact"><span>Dimensions</span><strong>${escapeHtml(report.dimensions)}</strong></div>
+      <div class="fact"><span>Size</span><strong>${escapeHtml(formatBytes(report.fileSize))}</strong></div>
+      <div class="fact"><span>Format</span><strong>${escapeHtml(report.fileType)}</strong></div>
+      <div class="fact"><span>SHA-256</span><strong>${escapeHtml(report.hash)}</strong></div>
+    </section>
+    <section>
+      <h2>Checks Performed</h2>
+      <table>
+        <thead><tr><th>Result</th><th>Check</th><th>Detail</th></tr></thead>
+        <tbody>${checkRows}</tbody>
+      </table>
+    </section>
+    <section>
+      <h2>Metadata Findings</h2>
+      ${findingRows ? `<table><thead><tr><th>Source</th><th>Category</th><th>Field</th><th>Value</th></tr></thead><tbody>${findingRows}</tbody></table>` : '<p>No provenance-focused metadata findings were recorded.</p>'}
+    </section>
+    <footer>
+      <strong>Limitations:</strong> ${CERTIFICATE_LIMITATIONS.map(escapeHtml).join(' ')}
+    </footer>
+  </main>
+</body>
+</html>`
 }
 
 export function summarizeReportStatuses(reports: AssetReport[]): ReportStatusCounts {

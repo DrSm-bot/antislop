@@ -385,6 +385,22 @@ button:hover {
   background: #2b4636;
 }
 
+.secondary-button {
+  color: #203529;
+  background: #dfe8df;
+}
+
+.secondary-button:hover {
+  background: #cfdacf;
+}
+
+.report-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+}
+
 button:disabled {
   cursor: not-allowed;
   opacity: 0.48;

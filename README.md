@@ -12,7 +12,8 @@ It scans image files locally for known AI provenance markers and exports a repor
 - Readable metadata scan for common generator strings.
 - C2PA / Content Credentials adapter with browser WASM validation where supported.
 - Explicit unsupported status for vendor-only invisible watermark checks such as SynthID.
-- JSON certificate export.
+- JSON report export for archives and automation.
+- Self-contained HTML report export with print-friendly styling.
 
 ## C2PA Capability
 
@@ -45,7 +46,7 @@ Limitations:
 - Broader C2PA fixture coverage with real signed public test assets.
 - EXIF, XMP, and IPTC parsing with structured field output.
 - Batch reports and ZIP export for project folders.
-- PDF/PNG certificate export.
+- Batch HTML report pack export.
 - Optional research watermark modules where an offline detector is legally and technically available.
 
 ## Language Policy
