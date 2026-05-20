@@ -143,7 +143,7 @@ const invalidC2pa = await reportWithC2pa({
   ...emptyC2paResult('invalid', 'c2pa-web', ['signature validation failed']),
 })
 assert(checkState(invalidC2pa, 'c2pa') === 'found', 'invalid C2PA is flagged')
-assert(reportStatus(invalidC2pa) === 'Known marker found', 'invalid C2PA affects report status')
+assert(reportStatus(invalidC2pa) === 'AI markers found', 'invalid C2PA affects report status')
 
 const stripped = await reportFor('\x00\x01\x02\xff')
 assert(checkState(stripped, 'structure') === 'warning', 'missing metadata markers are reported')
@@ -193,11 +193,11 @@ assert(certificate.schema === 'antislop.certificate', 'certificate has a stable 
 assert(certificate.schemaVersion === 1, 'certificate has a versioned schema')
 assert(certificate.tool.name === 'AntiSlop', 'certificate identifies the tool')
 assert(certificate.tool.version === '0.1.0', 'certificate records the tool version')
-assert(certificate.result.status === 'Known marker found', 'certificate records result status')
+assert(certificate.result.status === 'AI markers found', 'certificate records result status')
 assert(
   certificate.result.wording ===
-    'Known AI-generation or provenance marker text was found in the local scan.',
-  'certificate records careful result wording',
+    'Evidence of generative AI use was found in the local scan. Signals: stable diffusion.',
+  'certificate records result wording',
 )
 assert(certificate.file.name === 'synthetic.jpg', 'certificate includes file name')
 assert(certificate.file.type === 'image/jpeg', 'certificate includes file type')
@@ -229,9 +229,9 @@ assert(
 )
 
 const summaryCounts = summarizeReportStatuses([generatorMetadata, stripped, validC2pa])
-assert(summaryCounts['Known marker found'] === 1, 'summary counts found reports')
-assert(summaryCounts['No known marker detected'] === 2, 'summary counts limited reports')
-assert(summaryCounts['Clean local scan'] === 0, 'summary includes clean reports even when none are present')
+assert(summaryCounts['AI markers found'] === 1, 'summary counts found reports')
+assert(summaryCounts['No AI markers found'] === 2, 'summary counts clean marker reports')
+assert(summaryCounts['Could not complete check'] === 0, 'summary includes incomplete reports even when none are present')
 
 const packageEntries = buildReportPackageEntries([
   { ...generatorMetadata, fileName: 'duplicate.png' },

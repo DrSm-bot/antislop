@@ -6,9 +6,11 @@ import {
   certificateFileName,
   formatBytes,
   reportStatus,
+  resultWording,
   summarizeReportStatuses,
   stringifyCertificate,
   type AssetReport,
+  type ReportStatus,
 } from './core/analysis'
 import './App.css'
 
@@ -30,6 +32,18 @@ type QueueProgress = {
 
 const QUEUE_YIELD_EVERY = 2
 
+function statusTone(status: ReportStatus | null) {
+  if (status === 'AI markers found') return 'found'
+  if (status === 'Could not complete check') return 'warning'
+  return 'clear'
+}
+
+function statusBadgeLabel(status: ReportStatus | null) {
+  if (status === 'No AI markers found') return '✓ No AI markers found'
+  if (status === 'AI markers found') return 'AI markers found'
+  return 'Could not complete check'
+}
+
 function pauseForPaint() {
   return new Promise<void>((resolve) => {
     window.setTimeout(resolve, 0)
@@ -49,6 +63,7 @@ function App() {
   })
 
   const activeReport = reports.find((report) => report.id === selectedReportId) ?? reports[0]
+  const activeStatus = activeReport ? reportStatus(activeReport) : null
   const statusCounts = useMemo(() => summarizeReportStatuses(reports), [reports])
 
   function summarizeScan(nextReports: AssetReport[], failedCount: number, skippedCount: number) {
@@ -219,16 +234,16 @@ function App() {
 
           <dl className="status-summary" aria-label="Report status summary">
             <div>
-              <dt>Found</dt>
-              <dd>{statusCounts['Known marker found']}</dd>
+              <dt>AI Found</dt>
+              <dd>{statusCounts['AI markers found']}</dd>
             </div>
             <div>
-              <dt>Limited</dt>
-              <dd>{statusCounts['No known marker detected']}</dd>
+              <dt>No AI Found</dt>
+              <dd>{statusCounts['No AI markers found']}</dd>
             </div>
             <div>
-              <dt>Clean</dt>
-              <dd>{statusCounts['Clean local scan']}</dd>
+              <dt>Could Not Check</dt>
+              <dd>{statusCounts['Could not complete check']}</dd>
             </div>
           </dl>
 
@@ -307,11 +322,11 @@ function App() {
                 <img src={activeReport.previewUrl} alt="" />
                 <div>
                   <p className="eyebrow">Certificate Preview</p>
-                  <h2>{reportStatus(activeReport)}</h2>
-                  <p>
-                    Checked {activeReport.fileName} locally. No result here can prove
-                    human authorship; it records which known markers were checked.
-                  </p>
+                  <span className={`result-badge ${statusTone(activeStatus)}`}>
+                    {statusBadgeLabel(activeStatus)}
+                  </span>
+                  <h2>{activeStatus === 'AI markers found' ? 'Evidence of AI generation found' : activeStatus}</h2>
+                  <p>{resultWording(activeReport)}</p>
                   <button
                     type="button"
                     onClick={() => downloadCertificate(activeReport)}
