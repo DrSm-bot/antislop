@@ -19,10 +19,28 @@ let worker: Worker | undefined
 let nextRequestId = 1
 const pending = new Map<number, PendingAnalysis>()
 
+function failPending(error: Error) {
+  pending.forEach(({ reject }) => reject(error))
+  pending.clear()
+}
+
+function disposeWorker() {
+  worker?.terminate()
+  worker = undefined
+}
+
 function getWorker() {
   if (typeof Worker === 'undefined') return undefined
 
-  worker ??= new Worker(new URL('./analysisWorker.ts', import.meta.url), { type: 'module' })
+  if (worker) return worker
+
+  try {
+    worker = new Worker(new URL('./analysisWorker.ts', import.meta.url), { type: 'module' })
+  } catch {
+    worker = undefined
+    return undefined
+  }
+
   worker.addEventListener('message', (event: MessageEvent<WorkerResponse>) => {
     const pendingAnalysis = pending.get(event.data.id)
     if (!pendingAnalysis) return
@@ -38,10 +56,12 @@ function getWorker() {
   })
   worker.addEventListener('error', (event) => {
     const error = new Error(event.message || 'Analysis worker failed.')
-    pending.forEach(({ reject }) => reject(error))
-    pending.clear()
-    worker?.terminate()
-    worker = undefined
+    failPending(error)
+    disposeWorker()
+  })
+  worker.addEventListener('messageerror', () => {
+    failPending(new Error('Analysis worker response could not be decoded.'))
+    disposeWorker()
   })
 
   return worker
@@ -55,6 +75,11 @@ export function analyzeBytesOffMainThread(input: AnalysisInput): Promise<AssetRe
 
   return new Promise<AssetReport>((resolve, reject) => {
     pending.set(id, { resolve, reject })
-    analysisWorker.postMessage({ id, input }, [input.bytes])
+    try {
+      analysisWorker.postMessage({ id, input }, [input.bytes])
+    } catch (error) {
+      pending.delete(id)
+      reject(error instanceof Error ? error : new Error(String(error)))
+    }
   })
 }
