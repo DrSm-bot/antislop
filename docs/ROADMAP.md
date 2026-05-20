@@ -1,78 +1,103 @@
-# AntiSlop MVP Roadmap
+# AntiSlop Roadmap
 
-AntiSlop is a local-first marker check for image assets. The MVP must help artists produce a defensible report without pretending to prove human authorship.
+AntiSlop is a local-first marker check for image assets. It helps artists, developers, and small teams produce a defensible report without pretending to prove human authorship.
 
-## MVP Definition
+## Current MVP State
 
-The MVP is complete when a user can:
+The current app can:
 
-1. Open AntiSlop as a static browser app.
-2. Drop one or more image files without uploading them anywhere.
-3. See file identity, thumbnail, dimensions, hash, and check status.
-4. Inspect structured metadata and provenance findings.
-5. Export a report suitable for attaching to an asset review package.
-6. Understand the limits of the report in plain language.
+1. Open as a static browser app.
+2. Check one or more image files without uploading them anywhere.
+3. Show file identity, thumbnail, dimensions, SHA-256 hash, and marker result.
+4. Switch between scanned assets in the queue.
+5. Remove a single asset from the queue after confirmation.
+6. Start a new report by clearing the queue after confirmation.
+7. Inspect C2PA / Content Credentials status, metadata findings, and local marker checks.
+8. Export a selected asset as a self-contained, print-friendly HTML report.
+9. Export a selected asset as a JSON report.
+10. Export all scanned assets as one full-batch HTML report with methods and privacy rationale.
+11. Export all scanned assets as a ZIP containing JSON reports and a summary manifest.
+12. Read an in-app About / Methods and Privacy section explaining what is checked and why files stay local.
 
-## Work Slices
+## Shipped Work Slices
 
 ### 1. Analysis Core
 
-- Move scan logic out of App.tsx into typed modules.
-- Return deterministic report objects that can be tested without rendering React.
-- Add fixtures for synthetic files that contain known metadata strings.
-- Keep the API ready for C2PA and EXIF/XMP/IPTC adapters.
+- Scan logic lives in typed core modules.
+- Reports are deterministic enough for Node-side tests.
+- Synthetic fixtures cover generator strings, missing metadata, and C2PA states.
+- The core exposes JSON report, HTML report, and report-package builders.
 
 ### 2. Structured Metadata
 
-- Parse EXIF, XMP, and IPTC fields using a maintained browser-compatible library.
-- Surface software, creator, copyright, prompt/generator-like fields, timestamps, and edit history where present.
-- Distinguish "metadata missing" from "metadata present but no known generator marker found."
+- EXIF, XMP, IPTC, and readable byte markers are parsed through `exifr` plus raw marker scanning.
+- Software, creator, copyright, timestamp, generator, prompt, and edit-trace fields are surfaced where present.
+- Metadata missing is treated as a check note, not top-level AI evidence.
 
 ### 3. C2PA Verification
 
-- Integrated the current Content Authenticity Initiative browser/WASM stack through `@contentauth/c2pa-web`.
-- Validate manifests where possible instead of byte-sniffing only.
-- Show issuer, claim generator, actions, validation state, and manifest errors.
-- Keep unsupported or stripped C2PA states explicit.
-- Remaining work: add committed public signed C2PA fixtures to exercise real valid/invalid manifests in CI.
+- C2PA / Content Credentials verification is integrated through `@contentauth/c2pa-web`.
+- The app records issuer, claim generator, actions, validation state, and verifier notes where available.
+- Unsupported formats and verifier failures remain explicit.
+- Byte sniffing remains a fallback only and is described as marker-only, not cryptographic validation.
 
 ### 4. Report Export
 
-- Define a stable report schema.
-- Export JSON for archives and automation.
-- Export self-contained, print-friendly HTML reports for single assets and full batches.
-- Explain local methods and privacy rationale in the full-batch HTML report.
-- Include thumbnail, SHA-256, checks performed, result wording, tool version, timestamp, and limitations.
-- Avoid any statement that claims proof of human authorship.
+- JSON report schema exists for archives and automation.
+- Single-asset HTML reports are self-contained and print-friendly.
+- Full-batch HTML reports include summary counts, asset rows, methods, limitations, and cloud-scanner privacy rationale.
+- Long filenames and SHA-256 hashes collapse behind expandable details in HTML reports.
+- JSON report packs are exported as ZIP archives.
 
 ### 5. Batch Workflow
 
-- Handle many files without UI stalls.
-- Add per-file status, summary counts, and report ZIP export.
-- Use workers where parsing or hashing blocks the main thread.
+- Multiple files can be checked in one selection/drop.
+- Queue results are selectable.
+- Summary counts update across the batch.
+- New Report and Remove actions are guarded by confirmation prompts.
 
-### 6. Test Corpus
+### 6. Product Polish
 
-- Add a documented fixture layout for human-made, AI-generated, stripped-metadata, and transformed images.
-- Do not commit private or copyrighted test assets without permission.
-- Store expected outcomes as report snapshots where licensing allows.
+- Top-level outcomes are `AI markers found`, `No AI markers found`, and `Could not complete check`.
+- The app avoids generic AI-detector claims.
+- Copy now describes general image assets instead of the earlier narrower framing.
+- In-app About content explains local methods and privacy tradeoffs.
 
-### 7. Product Polish
+## Remaining Work
 
-- Improve empty, loading, error, and unsupported states.
-- Tune responsive layout for desktop and mobile.
-- Add accessible keyboard and screen-reader flows for file upload and report export.
-- Keep the copy sharp: "scan game art for known AI provenance markers."
+### Public Fixtures
 
-## Non-Goals For MVP
+- Add committed public signed C2PA fixtures to exercise real valid/invalid manifests in CI.
+- Add public expected snapshots where licensing allows.
+- Keep private/local test images in `test-corpus/local/**`.
+
+### UI Verification
+
+- Add screenshot-based checks for desktop and mobile layouts.
+- Verify print output for single-asset and full-batch HTML reports.
+- Exercise long filenames, long metadata values, and large batch reports.
+
+### Report Pack Improvements
+
+- Consider adding HTML reports to the ZIP export alongside JSON reports.
+- Consider an index HTML file inside report packs.
+- Consider a lightweight manifest viewer for exported packs.
+
+### Offline Watermark Research
+
+- Track vendor watermark systems such as SynthID, but only implement checks where an offline browser verifier is legally and technically available.
+- Do not add cloud-scanner flows that require artists to upload unpublished work to AI providers.
+
+## Non-Goals
 
 - Generic visual AI classification.
 - Uploading files to cloud detectors.
-- Vendor-only watermark checks unless an offline verifier is publicly available.
 - Claims that an asset is human-made or legally safe to use.
+- A remote validation service for private project assets.
 
 ## Cloudflare Pages
 
-- Build command: npm run build
-- Output directory: dist
-- No server-side functions required for MVP.
+- Build command: `npm run build`
+- Output directory: `dist`
+- Node version: 22
+- No server-side functions required.
