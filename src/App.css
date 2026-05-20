@@ -249,17 +249,38 @@
 }
 
 .queue-item {
+  border: 1px solid rgba(65, 83, 71, 0.16);
+  border-radius: 8px;
+  background: #fbfcf8;
+  overflow: hidden;
+}
+
+.queue-select {
   display: grid;
   grid-template-columns: 58px 1fr;
   gap: 12px;
   align-items: center;
+  width: 100%;
+  min-height: 0;
   padding: 10px;
-  border: 1px solid rgba(65, 83, 71, 0.16);
-  border-radius: 8px;
-  background: #fbfcf8;
+  border: 0;
+  border-radius: 0;
+  color: inherit;
+  background: transparent;
+  font: inherit;
+  text-align: left;
 }
 
-.queue-item img {
+.queue-select:hover {
+  background: #edf3eb;
+}
+
+.queue-select.is-selected {
+  background: #e2ecdf;
+  box-shadow: inset 4px 0 0 #203529;
+}
+
+.queue-select img {
   width: 58px;
   height: 58px;
   border-radius: 6px;
@@ -267,20 +288,21 @@
   background: #dce5dd;
 }
 
-.queue-item strong,
-.queue-item span {
+.queue-select strong,
+.queue-select em {
   display: block;
 }
 
-.queue-item strong {
+.queue-select strong {
   overflow-wrap: anywhere;
   font-size: 14px;
 }
 
-.queue-item span {
+.queue-select em {
   margin-top: 4px;
   color: #4f5b52;
   font-size: 13px;
+  font-style: normal;
 }
 
 .report-panel {
@@ -536,12 +558,12 @@ button:focus-visible,
     font-size: 22px;
   }
 
-  .queue-item,
+  .queue-select,
   .check-row {
     grid-template-columns: 1fr;
   }
 
-  .queue-item img {
+  .queue-select img {
     width: 100%;
     height: auto;
     max-height: 180px;
