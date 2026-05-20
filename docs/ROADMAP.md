@@ -27,6 +27,7 @@ The current app can:
 - Reports are deterministic enough for Node-side tests.
 - Synthetic fixtures cover generator strings, missing metadata, and C2PA states.
 - The core exposes JSON report, HTML report, and report-package builders.
+- Browser scans offload hashing and metadata parsing to a module worker to reduce UI blocking on larger batches.
 
 ### 2. Structured Metadata
 
