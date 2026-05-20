@@ -233,14 +233,17 @@ function App() {
           </dl>
 
           <div className="batch-actions">
-            <button
-              type="button"
-              onClick={downloadAllReports}
-              disabled={reports.length === 0}
-              aria-label="Export all checked reports as a ZIP file"
-            >
-              Export ZIP
-            </button>
+            <div>
+              <button
+                type="button"
+                onClick={downloadAllReports}
+                disabled={reports.length === 0}
+                aria-label="Download a ZIP containing reports for all checked assets"
+              >
+                Download All Reports
+              </button>
+              <span className="action-hint">ZIP with summary and one JSON certificate per asset</span>
+            </div>
             {queueProgress.failed > 0 || queueProgress.skipped > 0 ? (
               <span>
                 {queueProgress.failed > 0 ? `${queueProgress.failed} failed` : null}
@@ -312,10 +315,11 @@ function App() {
                   <button
                     type="button"
                     onClick={() => downloadCertificate(activeReport)}
-                    aria-label={`Export JSON report for ${activeReport.fileName}`}
+                    aria-label={`Download JSON certificate for selected asset ${activeReport.fileName}`}
                   >
-                    Export JSON Report
+                    Download Selected Certificate
                   </button>
+                  <p className="action-hint">JSON report for this selected image only</p>
                 </div>
               </div>
 

@@ -171,15 +171,29 @@
 .batch-actions {
   display: flex;
   gap: 10px;
-  align-items: center;
+  align-items: flex-start;
   margin-top: 12px;
 }
 
-.batch-actions span,
+.batch-actions > div {
+  display: grid;
+  gap: 5px;
+}
+
+.batch-actions > span,
 .queue-progress span {
   color: #46534b;
   font-size: 13px;
   font-weight: 700;
+}
+
+.action-hint {
+  display: block;
+  max-width: 280px;
+  color: #445247;
+  font-size: 13px;
+  font-weight: 650;
+  line-height: 1.35;
 }
 
 .queue-progress {
