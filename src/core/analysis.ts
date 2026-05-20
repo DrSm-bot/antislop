@@ -295,6 +295,28 @@ function hasReadableMetadataMarkers(sample: string) {
   )
 }
 
+function rawMetadataFindings(sample: string): MetadataFinding[] {
+  const findings: MetadataFinding[] = []
+
+  for (const term of KNOWN_GENERATOR_TERMS) {
+    const index = sample.indexOf(term)
+
+    if (index === -1) continue
+
+    const start = Math.max(0, index - 48)
+    const end = Math.min(sample.length, index + term.length + 72)
+    findings.push({
+      source: 'raw',
+      category: 'generator',
+      field: 'readable-bytes',
+      value: sample.slice(start, end).trim(),
+      matchedGeneratorTerm: term,
+    })
+  }
+
+  return findings
+}
+
 export async function parseMetadata(bytes: ArrayBuffer, sample = decodeTextSample(bytes)) {
   let parsed: unknown
   let parserError: string | undefined
@@ -315,7 +337,7 @@ export async function parseMetadata(bytes: ArrayBuffer, sample = decodeTextSampl
     parserError = error instanceof Error ? error.message : String(error)
   }
 
-  const findings = collectMetadataFindings(parsed)
+  const findings = [...collectMetadataFindings(parsed), ...rawMetadataFindings(sample)]
   const present = hasStructuredMetadata(parsed) || hasReadableMetadataMarkers(sample)
   const generatorTerm = findings.find((finding) => finding.matchedGeneratorTerm)?.matchedGeneratorTerm
 

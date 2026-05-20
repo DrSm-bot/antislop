@@ -77,6 +77,14 @@ function checkState(report: Awaited<ReturnType<typeof reportFor>>, id: string) {
 
 const knownGenerator = await reportFor('Software: Stable Diffusion XL')
 assert(checkState(knownGenerator, 'c2pa') === 'clear', 'generator-only text does not imply C2PA')
+assert(knownGenerator.metadata.presence === 'present', 'raw software marker counts as metadata presence')
+assert(knownGenerator.metadata.state === 'found', 'raw generator marker text is flagged')
+assert(
+  knownGenerator.metadata.findings.some(
+    (finding) => finding.source === 'raw' && finding.matchedGeneratorTerm === 'stable diffusion',
+  ),
+  'raw readable metadata records the matched generator term',
+)
 
 const noMarker = await reportFor('ordinary camera export with EXIF metadata')
 assert(checkState(noMarker, 'structure') === 'clear', 'EXIF marker counts as metadata structure')

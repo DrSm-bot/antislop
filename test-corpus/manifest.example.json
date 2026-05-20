@@ -14,7 +14,7 @@
       },
       "expectedMetadata": {
         "presence": "present",
-        "state": "clear"
+        "state": "found"
       }
     },
     {
