@@ -21,8 +21,13 @@ type FixtureEntry = {
   fileType: string
   dimensions: string
   sampleText?: string
+  syntheticXmpDescription?: string
   license?: string
   expected?: Record<string, CheckState>
+  expectedMetadata?: {
+    presence?: 'missing' | 'present'
+    state?: CheckState
+  }
 }
 
 type RunnerOptions = {
@@ -79,9 +84,38 @@ function assertFixture(entry: FixtureEntry) {
   if (!entry.category) throw new Error(`Fixture ${entry.id} is missing category`)
   if (!entry.fileType) throw new Error(`Fixture ${entry.id} is missing fileType`)
   if (!entry.dimensions) throw new Error(`Fixture ${entry.id} is missing dimensions`)
-  if (!entry.path && entry.sampleText === undefined) {
-    throw new Error(`Fixture ${entry.id} needs either path or sampleText`)
+  if (!entry.path && entry.sampleText === undefined && entry.syntheticXmpDescription === undefined) {
+    throw new Error(`Fixture ${entry.id} needs path, sampleText, or syntheticXmpDescription`)
   }
+}
+
+function jpegWithApp1(payload: string) {
+  const payloadBytes = textEncoder.encode(payload)
+  const segmentLength = payloadBytes.length + 2
+  const bytes = new Uint8Array(2 + 2 + 2 + payloadBytes.length + 2)
+  let offset = 0
+
+  bytes.set([0xff, 0xd8, 0xff, 0xe1, segmentLength >> 8, segmentLength & 0xff], offset)
+  offset += 6
+  bytes.set(payloadBytes, offset)
+  offset += payloadBytes.length
+  bytes.set([0xff, 0xd9], offset)
+
+  return bytes
+}
+
+function syntheticXmpPacket(description: string) {
+  return [
+    'http://ns.adobe.com/xap/1.0/\\0',
+    '<x:xmpmeta xmlns:x="adobe:ns:meta/">',
+    '<rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#">',
+    '<rdf:Description xmlns:xmp="http://ns.adobe.com/xap/1.0/" xmlns:dc="http://purl.org/dc/elements/1.1/" ',
+    'xmp:CreatorTool="Affinity Photo 2" xmp:CreateDate="2026-05-20T00:00:00Z">',
+    '<dc:creator><rdf:Seq><rdf:li>Fixture Artist</rdf:li></rdf:Seq></dc:creator>',
+    '<dc:rights><rdf:Alt><rdf:li xml:lang="x-default">Copyright Fixture Artist</rdf:li></rdf:Alt></dc:rights>',
+    `<dc:description><rdf:Alt><rdf:li xml:lang="x-default">${description}</rdf:li></rdf:Alt></dc:description>`,
+    '</rdf:Description></rdf:RDF></x:xmpmeta>',
+  ].join('')
 }
 
 async function bytesForFixture(entry: FixtureEntry, manifestDir: string) {
@@ -91,6 +125,15 @@ async function bytesForFixture(entry: FixtureEntry, manifestDir: string) {
     return {
       bytes: bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength),
       fileName: entry.fileName ?? path.basename(entry.path),
+      fileSize: bytes.byteLength,
+    }
+  }
+
+  if (entry.syntheticXmpDescription !== undefined) {
+    const bytes = jpegWithApp1(syntheticXmpPacket(entry.syntheticXmpDescription))
+    return {
+      bytes: bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength),
+      fileName: entry.fileName ?? `${entry.id}.jpg`,
       fileSize: bytes.byteLength,
     }
   }
@@ -112,6 +155,18 @@ function validateExpected(entry: FixtureEntry, report: Awaited<ReturnType<typeof
         `${entry.id}: expected ${checkId} to be ${expectedState}, got ${actual ?? 'missing'}`,
       )
     }
+  }
+
+  if (entry.expectedMetadata?.presence && report.metadata.presence !== entry.expectedMetadata.presence) {
+    throw new Error(
+      `${entry.id}: expected metadata presence to be ${entry.expectedMetadata.presence}, got ${report.metadata.presence}`,
+    )
+  }
+
+  if (entry.expectedMetadata?.state && report.metadata.state !== entry.expectedMetadata.state) {
+    throw new Error(
+      `${entry.id}: expected metadata state to be ${entry.expectedMetadata.state}, got ${report.metadata.state}`,
+    )
   }
 }
 

@@ -9,9 +9,12 @@
       "sampleText": "Software: Stable Diffusion",
       "license": "Synthetic text fixture. No image sample.",
       "expected": {
-        "metadata": "found",
         "c2pa": "clear",
         "structure": "clear"
+      },
+      "expectedMetadata": {
+        "presence": "present",
+        "state": "clear"
       }
     },
     {
@@ -23,8 +26,45 @@
       "sampleText": "\\u0000\\u0001\\u0002",
       "license": "Synthetic text fixture. No image sample.",
       "expected": {
-        "metadata": "clear",
         "structure": "warning"
+      },
+      "expectedMetadata": {
+        "presence": "missing",
+        "state": "warning"
+      }
+    },
+    {
+      "id": "synthetic-xmp-present",
+      "category": "human-made",
+      "fileName": "synthetic-xmp-present.jpg",
+      "fileType": "image/jpeg",
+      "dimensions": "1 x 1",
+      "syntheticXmpDescription": "Camera-original concept art",
+      "license": "Synthetic JPEG/XMP fixture. No image sample.",
+      "expected": {
+        "c2pa": "clear",
+        "structure": "clear"
+      },
+      "expectedMetadata": {
+        "presence": "present",
+        "state": "clear"
+      }
+    },
+    {
+      "id": "synthetic-xmp-generator-field",
+      "category": "ai-generated",
+      "fileName": "synthetic-xmp-generator-field.jpg",
+      "fileType": "image/jpeg",
+      "dimensions": "1 x 1",
+      "syntheticXmpDescription": "Prompt: stable diffusion fantasy inventory icon",
+      "license": "Synthetic JPEG/XMP fixture. No image sample.",
+      "expected": {
+        "c2pa": "clear",
+        "structure": "clear"
+      },
+      "expectedMetadata": {
+        "presence": "present",
+        "state": "found"
       }
     },
     {
