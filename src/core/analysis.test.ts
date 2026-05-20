@@ -1,9 +1,11 @@
 import {
   buildCertificate,
+  buildHtmlReport,
   buildReportPackageEntries,
   certificateFileName,
   decodeTextSample,
   analyzeBytes,
+  htmlReportFileName,
   reportStatus,
   summarizeReportStatuses,
   stringifyCertificate,
@@ -224,9 +226,23 @@ assert(
   certificateFileName({
     ...knownGenerator,
     fileName: ' test image @ 2x.png ',
-  }) === 'test-image-2x.png.antislop-certificate-v1.json',
-  'certificate filename is stable and sanitized',
+  }) === 'test-image-2x.png.antislop-report-v1.json',
+  'JSON report filename is stable and sanitized',
 )
+assert(
+  htmlReportFileName({
+    ...knownGenerator,
+    fileName: ' test image @ 2x.png ',
+  }) === 'test-image-2x.png.antislop-report.html',
+  'HTML report filename is stable and sanitized',
+)
+
+const htmlReport = buildHtmlReport(generatorMetadata, 'data:image/png;base64,AAAA')
+assert(htmlReport.includes('<!doctype html>'), 'HTML report is a complete document')
+assert(htmlReport.includes('AntiSlop HTML Report'), 'HTML report identifies report type')
+assert(htmlReport.includes('data:image/png;base64,AAAA'), 'HTML report embeds preview data')
+assert(htmlReport.includes('@media print'), 'HTML report includes print styles')
+assert(htmlReport.includes('Evidence of AI generation found'), 'HTML report includes result headline')
 
 const summaryCounts = summarizeReportStatuses([generatorMetadata, stripped, validC2pa])
 assert(summaryCounts['AI markers found'] === 1, 'summary counts found reports')
@@ -244,11 +260,11 @@ assert(
   'summary manifest counts reports',
 )
 assert(
-  packageEntries[1]?.path === 'duplicate.png.antislop-certificate-v1.json',
-  'package uses certificate filenames',
+  packageEntries[1]?.path === 'duplicate.png.antislop-report-v1.json',
+  'package uses JSON report filenames',
 )
 assert(
-  packageEntries[2]?.path === 'duplicate.png.antislop-certificate-v1-002.json',
+  packageEntries[2]?.path === 'duplicate.png.antislop-report-v1-002.json',
   'package keeps duplicate filenames distinct',
 )
 assert(
@@ -259,7 +275,7 @@ assert(
 const zipArchive = createZipArchive(packageEntries)
 assert(zipArchive[0] === 0x50 && zipArchive[1] === 0x4b, 'ZIP archive starts with local header')
 assert(
-  new TextDecoder().decode(zipArchive).includes('duplicate.png.antislop-certificate-v1.json'),
+  new TextDecoder().decode(zipArchive).includes('duplicate.png.antislop-report-v1.json'),
   'ZIP archive includes report filenames',
 )
 assert(
