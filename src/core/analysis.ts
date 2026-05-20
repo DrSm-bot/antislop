@@ -578,6 +578,10 @@ export function htmlReportFileName(report: AssetReport) {
   return `${safeName || 'asset'}.antislop-report.html`
 }
 
+export function projectHtmlReportFileName(date = new Date()) {
+  return `antislop-full-report-${date.toISOString().slice(0, 10)}.html`
+}
+
 function escapeHtml(value: string | number | undefined | null) {
   return String(value ?? '')
     .replace(/&/g, '&amp;')
@@ -692,6 +696,115 @@ export function buildHtmlReport(report: AssetReport, previewDataUrl?: string) {
     <section>
       <h2>Metadata Findings</h2>
       ${findingRows ? `<table><thead><tr><th>Source</th><th>Category</th><th>Field</th><th>Value</th></tr></thead><tbody>${findingRows}</tbody></table>` : '<p>No provenance-focused metadata findings were recorded.</p>'}
+    </section>
+    <footer>
+      <strong>Limitations:</strong> ${CERTIFICATE_LIMITATIONS.map(escapeHtml).join(' ')}
+    </footer>
+  </main>
+</body>
+</html>`
+}
+
+export function buildProjectHtmlReport(
+  reports: AssetReport[],
+  previewDataUrls: Record<string, string> = {},
+  generatedAt = new Date().toISOString(),
+) {
+  const counts = summarizeReportStatuses(reports)
+  const assetRows = reports
+    .map((report) => {
+      const status = reportStatus(report)
+      const tone = status === 'AI markers found' ? 'found' : status === 'Could not complete check' ? 'warning' : 'clear'
+      const preview = previewDataUrls[report.id]
+      const evidence = markerEvidenceSummary(report)
+      return `<tr>
+        <td>${preview ? `<img src="${escapeHtml(preview)}" alt="Preview of ${escapeHtml(report.fileName)}">` : ''}</td>
+        <td><strong>${escapeHtml(report.fileName)}</strong><span>${escapeHtml(report.dimensions)} · ${escapeHtml(formatBytes(report.fileSize))}</span></td>
+        <td><span class="pill ${escapeHtml(tone)}">${escapeHtml(status)}</span></td>
+        <td>${escapeHtml(evidence.length ? evidence.join(', ') : 'No supported generative AI marker recorded')}</td>
+        <td><code>${escapeHtml(report.hash)}</code></td>
+      </tr>`
+    })
+    .join('')
+
+  return `<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>AntiSlop Full HTML Report</title>
+  <style>
+    :root { color: #17201a; background: #f5f7f2; font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+    body { margin: 0; }
+    main { max-width: 1120px; margin: 0 auto; padding: 34px 20px; }
+    h1, h2, h3, p { margin-top: 0; letter-spacing: 0; }
+    h1 { margin-bottom: 10px; font-size: 34px; }
+    h2 { margin: 30px 0 10px; font-size: 22px; }
+    h3 { margin-bottom: 8px; font-size: 16px; }
+    p, li { color: #445247; line-height: 1.58; }
+    .eyebrow { margin-bottom: 8px; color: #5c6b60; font-size: 12px; font-weight: 900; letter-spacing: .08em; text-transform: uppercase; }
+    .summary { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; margin: 24px 0; }
+    .fact, .method { padding: 14px; border: 1px solid #d9e2da; border-radius: 8px; background: #fff; }
+    .fact span { display: block; color: #5c6b60; font-size: 11px; font-weight: 900; text-transform: uppercase; }
+    .fact strong { display: block; margin-top: 4px; font-size: 24px; }
+    .methods { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+    table { width: 100%; border-collapse: collapse; margin: 18px 0 24px; background: #fff; }
+    th, td { padding: 10px; border: 1px solid #d9e2da; text-align: left; vertical-align: top; }
+    th { color: #46534b; font-size: 12px; text-transform: uppercase; }
+    td img { width: 86px; aspect-ratio: 4 / 3; object-fit: cover; border-radius: 6px; background: #dce5dd; }
+    td span { display: block; margin-top: 4px; color: #5c6b60; font-size: 12px; }
+    code { overflow-wrap: anywhere; font-size: 12px; }
+    .pill { display: inline-flex; padding: 5px 9px; border: 1px solid #9aa89b; border-radius: 999px; font-size: 12px; font-weight: 900; white-space: nowrap; }
+    .pill.clear { border-color: #7aa673; color: #18521f; background: #e7f4e4; }
+    .pill.found { border-color: #b87070; color: #6b1d1d; background: #fae8e8; }
+    .pill.warning { border-color: #b49b63; color: #5d4310; background: #f8efda; }
+    footer { margin-top: 30px; color: #5c6b60; font-size: 12px; line-height: 1.5; }
+    @media print {
+      :root { background: #fff; }
+      main { max-width: none; padding: 0; }
+      .fact, .method, table { break-inside: avoid; }
+      body { color: #000; }
+    }
+    @media (max-width: 780px) {
+      .summary, .methods { grid-template-columns: 1fr; }
+      table { display: block; overflow-x: auto; }
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <header>
+      <p class="eyebrow">AntiSlop Full HTML Report</p>
+      <h1>Local asset marker report</h1>
+      <p>This report summarizes the local AntiSlop checks performed for ${escapeHtml(reports.length)} image asset${reports.length === 1 ? '' : 's'} on ${escapeHtml(generatedAt)}. It records evidence found in the files; it does not claim to prove human authorship.</p>
+    </header>
+    <section class="summary" aria-label="Result summary">
+      <div class="fact"><span>Total assets</span><strong>${escapeHtml(reports.length)}</strong></div>
+      <div class="fact"><span>AI markers found</span><strong>${escapeHtml(counts['AI markers found'])}</strong></div>
+      <div class="fact"><span>No AI markers found</span><strong>${escapeHtml(counts['No AI markers found'])}</strong></div>
+      <div class="fact"><span>Could not check</span><strong>${escapeHtml(counts['Could not complete check'])}</strong></div>
+    </section>
+    <section>
+      <h2>Methods Used</h2>
+      <p>AntiSlop is designed as an offline, browser-based marker check for artists and small teams. Files are read locally in the browser so the checked artwork does not need to leave the user's device.</p>
+      <div class="methods">
+        <article class="method"><h3>Cryptographic provenance</h3><p>The app attempts C2PA / Content Credentials verification in supported browser runtimes. Valid, invalid, found, missing, and unsupported states are reported explicitly.</p></article>
+        <article class="method"><h3>Metadata inspection</h3><p>EXIF, XMP, IPTC, and readable file metadata are scanned for known generator, workflow, prompt, software, and provider marker strings.</p></article>
+        <article class="method"><h3>Raw marker search</h3><p>Readable byte ranges are checked for common provider markers that can survive in exported image files even when structured metadata parsing is incomplete.</p></article>
+        <article class="method"><h3>Unsupported watermark systems</h3><p>Vendor-specific invisible watermark systems are listed as check notes when no offline browser verifier is available.</p></article>
+      </div>
+    </section>
+    <section>
+      <h2>Why Cloud Scanners Are Not Used</h2>
+      <p>AntiSlop intentionally avoids cloud-based scanning services from large AI providers. Artists, game teams, and creators often need to inspect unpublished or client-owned work without sending those assets to third-party AI labs. A browser-local workflow keeps the privacy boundary simple: the file is checked on the user's device, and the report states exactly which local methods were available.</p>
+      <p>This choice is a tradeoff. Cloud services may have access to private watermark detectors that cannot currently run in a browser, but using them would require uploading the artwork. AntiSlop prefers a transparent local result over a black-box remote verdict.</p>
+    </section>
+    <section>
+      <h2>Asset Results</h2>
+      <table>
+        <thead><tr><th>Preview</th><th>Asset</th><th>Result</th><th>Evidence Summary</th><th>SHA-256</th></tr></thead>
+        <tbody>${assetRows}</tbody>
+      </table>
     </section>
     <footer>
       <strong>Limitations:</strong> ${CERTIFICATE_LIMITATIONS.map(escapeHtml).join(' ')}

@@ -40,7 +40,8 @@ The MVP is complete when a user can:
 
 - Define a stable report schema.
 - Export JSON for archives and automation.
-- Export a self-contained, print-friendly HTML report for sharing or browser print-to-PDF.
+- Export self-contained, print-friendly HTML reports for single assets and full batches.
+- Explain local methods and privacy rationale in the full-batch HTML report.
 - Include thumbnail, SHA-256, checks performed, result wording, tool version, timestamp, and limitations.
 - Avoid any statement that claims proof of human authorship.
 
