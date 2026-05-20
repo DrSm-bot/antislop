@@ -1,0 +1,43 @@
+{
+  "fixtures": [
+    {
+      "id": "synthetic-generator-marker",
+      "category": "ai-generated",
+      "fileName": "synthetic-generator-marker.png",
+      "fileType": "image/png",
+      "dimensions": "1 x 1",
+      "sampleText": "Software: Stable Diffusion",
+      "license": "Synthetic text fixture. No image sample.",
+      "expected": {
+        "metadata": "found",
+        "c2pa": "clear",
+        "structure": "clear"
+      }
+    },
+    {
+      "id": "synthetic-stripped-metadata",
+      "category": "stripped-metadata",
+      "fileName": "synthetic-stripped-metadata.png",
+      "fileType": "image/png",
+      "dimensions": "1 x 1",
+      "sampleText": "\\u0000\\u0001\\u0002",
+      "license": "Synthetic text fixture. No image sample.",
+      "expected": {
+        "metadata": "clear",
+        "structure": "warning"
+      }
+    },
+    {
+      "id": "synthetic-c2pa-marker",
+      "category": "c2pa-bearing",
+      "fileName": "synthetic-c2pa-marker.png",
+      "fileType": "image/png",
+      "dimensions": "1 x 1",
+      "sampleText": "Content Credentials c2pa manifest",
+      "license": "Synthetic text fixture. No image sample.",
+      "expected": {
+        "c2pa": "warning"
+      }
+    }
+  ]
+}

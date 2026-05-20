@@ -9,6 +9,7 @@
     "build": "tsc -b && vite build",
     "lint": "eslint .",
     "test": "node --experimental-strip-types src/core/analysis.test.ts",
+    "fixtures:analyze": "node --experimental-strip-types scripts/analyze-fixtures.ts",
     "preview": "vite preview"
   },
   "dependencies": {

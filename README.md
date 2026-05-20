@@ -44,6 +44,16 @@ npm install
 npm run dev
 \`\`\`
 
+Analyze documented local fixtures:
+
+\`\`\`bash
+npm run fixtures:analyze
+# or
+npm run fixtures:analyze -- --manifest test-corpus/manifest.local.json --write
+\`\`\`
+
+See [docs/test-corpus.md](docs/test-corpus.md) for fixture layout, privacy rules, and expected snapshot guidance.
+
 Build for Cloudflare Pages:
 
 \`\`\`bash
