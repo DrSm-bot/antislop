@@ -1,9 +1,11 @@
-import { useMemo, useState } from 'react'
+import { useState } from 'react'
 import { analyzeImageFile } from './lib/browserAnalysis'
 import {
   buildCertificate,
+  certificateFileName,
   formatBytes,
   reportStatus,
+  stringifyCertificate,
   type AssetReport,
 } from './core/analysis'
 import './App.css'
@@ -13,12 +15,6 @@ function App() {
   const [isScanning, setIsScanning] = useState(false)
 
   const activeReport = reports[0]
-  const certificate = useMemo(() => {
-    if (!activeReport) return ''
-
-    return JSON.stringify(buildCertificate(activeReport), null, 2)
-  }, [activeReport])
-
   async function onFiles(files: FileList | null) {
     if (!files?.length) return
     setIsScanning(true)
@@ -33,11 +29,12 @@ function App() {
   }
 
   function downloadCertificate(report: AssetReport) {
-    const blob = new Blob([certificate], { type: 'application/json' })
+    const reportCertificate = buildCertificate(report)
+    const blob = new Blob([stringifyCertificate(reportCertificate)], { type: 'application/json' })
     const url = URL.createObjectURL(blob)
     const anchor = document.createElement('a')
     anchor.href = url
-    anchor.download = `${report.fileName}.antislop-report.json`
+    anchor.download = certificateFileName(report)
     anchor.click()
     URL.revokeObjectURL(url)
   }
