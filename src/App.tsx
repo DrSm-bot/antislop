@@ -205,7 +205,7 @@ function App() {
       </section>
 
       <section className="workspace">
-        <aside className="queue-panel">
+        <aside className="queue-panel" aria-busy={isScanning}>
           <div className="panel-heading">
             <h2>Asset Queue</h2>
             <span aria-live="polite">
@@ -231,7 +231,12 @@ function App() {
           </dl>
 
           <div className="batch-actions">
-            <button type="button" onClick={downloadAllReports} disabled={reports.length === 0}>
+            <button
+              type="button"
+              onClick={downloadAllReports}
+              disabled={reports.length === 0}
+              aria-label="Export all checked reports as a ZIP file"
+            >
               Export ZIP
             </button>
             {queueProgress.failed > 0 || queueProgress.skipped > 0 ? (
@@ -245,7 +250,11 @@ function App() {
 
           {isScanning ? (
             <div className="queue-progress" aria-live="polite">
-              <progress value={queueProgress.completed} max={queueProgress.total || 1} />
+              <progress
+                value={queueProgress.completed}
+                max={queueProgress.total || 1}
+                aria-label="Batch scan progress"
+              />
               <span>{queueProgress.currentFile ?? 'Preparing batch...'}</span>
             </div>
           ) : null}
@@ -264,9 +273,9 @@ function App() {
           ) : reports.length === 0 ? (
             <p className="empty-state loading-state">Preparing the first report...</p>
           ) : (
-            <div className="queue-list" aria-label="Checked assets">
+            <div className="queue-list" role="list" aria-label="Checked assets">
               {reports.map((report) => (
-                <article className="queue-item" key={report.id}>
+                <article className="queue-item" key={report.id} role="listitem">
                   <img src={report.previewUrl} alt="" />
                   <div>
                     <strong>{report.fileName}</strong>
