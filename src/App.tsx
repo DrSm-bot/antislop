@@ -127,6 +127,10 @@ function App() {
               </dl>
 
               <div className="checks-list">
+                <div className="section-heading">
+                  <h3>Marker Verdicts</h3>
+                  <span>Raw byte and capability checks</span>
+                </div>
                 {activeReport.checks.map((check) => (
                   <article className={`check-row ${check.state}`} key={check.id}>
                     <span>{check.state}</span>
@@ -137,6 +141,36 @@ function App() {
                   </article>
                 ))}
               </div>
+
+              <section className="metadata-panel">
+                <div className="section-heading">
+                  <h3>EXIF / XMP / IPTC Metadata</h3>
+                  <span>{activeReport.metadata.presence}</span>
+                </div>
+                <article className={`check-row ${activeReport.metadata.state}`}>
+                  <span>{activeReport.metadata.state}</span>
+                  <div>
+                    <h3>Structured metadata parser</h3>
+                    <p>{activeReport.metadata.detail}</p>
+                  </div>
+                </article>
+
+                {activeReport.metadata.findings.length > 0 ? (
+                  <dl className="metadata-list">
+                    {activeReport.metadata.findings.map((finding) => (
+                      <div key={`${finding.source}-${finding.category}-${finding.field}`}>
+                        <dt>
+                          {finding.source.toUpperCase()} · {finding.category}
+                        </dt>
+                        <dd>
+                          <strong>{finding.field}</strong>
+                          <span>{finding.value}</span>
+                        </dd>
+                      </div>
+                    ))}
+                  </dl>
+                ) : null}
+              </section>
             </>
           ) : (
             <div className="blank-report">

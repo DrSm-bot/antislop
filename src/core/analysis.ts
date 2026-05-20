@@ -1,4 +1,8 @@
+import exifr from 'exifr'
+
 export type CheckState = 'clear' | 'warning' | 'found'
+
+type ExifrOptions = NonNullable<Parameters<typeof exifr.parse>[1]>
 
 export type MarkerCheck = {
   id: string
@@ -17,6 +21,38 @@ export type AssetReport = {
   checkedAt: string
   previewUrl: string
   checks: MarkerCheck[]
+  metadata: MetadataReport
+}
+
+export type MetadataSource = 'exif' | 'xmp' | 'iptc' | 'raw'
+
+export type MetadataCategory =
+  | 'software'
+  | 'creator'
+  | 'copyright'
+  | 'timestamp'
+  | 'generator'
+  | 'prompt'
+  | 'editTrace'
+
+export type MetadataFinding = {
+  source: MetadataSource
+  category: MetadataCategory
+  field: string
+  value: string
+  matchedGeneratorTerm?: string
+}
+
+export type MetadataReport = {
+  state: CheckState
+  presence: 'missing' | 'present'
+  detail: string
+  findings: MetadataFinding[]
+  parser: {
+    name: 'exifr'
+    parsed: boolean
+    error?: string
+  }
 }
 
 export type CertificatePreview =
@@ -58,6 +94,7 @@ export type AntiSlopCertificateV1 = {
   preview: CertificatePreview
   checkedAt: string
   checks: CertificateCheck[]
+  metadata?: MetadataReport
   limitations: string[]
 }
 
@@ -90,6 +127,41 @@ export const KNOWN_GENERATOR_TERMS = [
   'comfyui',
   'automatic1111',
 ] as const
+
+const METADATA_FIELD_RULES: Array<{
+  category: MetadataCategory
+  names: string[]
+}> = [
+  { category: 'software', names: ['software', 'creatortool', 'originatingprogram', 'programversion'] },
+  { category: 'creator', names: ['artist', 'creator', 'byline', 'writer', 'credit', 'source'] },
+  { category: 'copyright', names: ['copyright', 'copyrightnotice', 'rights', 'usageterms'] },
+  {
+    category: 'timestamp',
+    names: [
+      'datetime',
+      'datetimeoriginal',
+      'createdate',
+      'modifydate',
+      'datecreated',
+      'digitalcreationdate',
+      'timecreated',
+      'digitalcreationtime',
+      'metadatadate',
+    ],
+  },
+  {
+    category: 'generator',
+    names: ['generator', 'ai', 'model', 'engine', 'creatortool', 'software', 'originatingprogram'],
+  },
+  {
+    category: 'prompt',
+    names: ['prompt', 'negativeprompt', 'parameters', 'workflow', 'usercomment', 'description'],
+  },
+  {
+    category: 'editTrace',
+    names: ['history', 'documenthistory', 'actionadvised', 'editstatus', 'derivedfrom', 'ingredients'],
+  },
+]
 
 export const TOOL_VERSION = '0.1.0'
 
@@ -131,6 +203,175 @@ export function decodeTextSample(bytes: ArrayBuffer) {
   return sample.replace(/\s+/g, ' ').toLowerCase()
 }
 
+function normalizeFieldName(value: string) {
+  return value.toLowerCase().replace(/[^a-z0-9]+/g, '')
+}
+
+function sourceFromPath(path: string[]): MetadataSource {
+  const root = normalizeFieldName(path[0] ?? '')
+
+  if (root.includes('iptc')) return 'iptc'
+  if (root.includes('xmp') || root === 'dc' || root === 'photoshop') return 'xmp'
+  if (root === 'raw') return 'raw'
+  return 'exif'
+}
+
+function stringifyMetadataValue(value: unknown): string | undefined {
+  if (value === undefined || value === null) return undefined
+  if (value instanceof Date) return value.toISOString()
+  if (value instanceof Uint8Array) return undefined
+  if (Array.isArray(value)) {
+    const values = value.map(stringifyMetadataValue).filter((entry): entry is string => Boolean(entry))
+    return values.length ? values.join(', ') : undefined
+  }
+  if (typeof value === 'object') {
+    const record = value as Record<string, unknown>
+    if (typeof record.value === 'string') return record.value
+    const values = Object.values(record)
+      .map(stringifyMetadataValue)
+      .filter((entry): entry is string => Boolean(entry))
+    return values.length ? values.join(', ') : undefined
+  }
+
+  const text = String(value).trim()
+  return text || undefined
+}
+
+function categoriesForField(path: string[], value: string): MetadataCategory[] {
+  const normalizedPath = path.map(normalizeFieldName).join('.')
+  const normalizedValue = value.toLowerCase()
+  const categories = new Set<MetadataCategory>()
+
+  for (const rule of METADATA_FIELD_RULES) {
+    if (rule.names.some((name) => normalizedPath.includes(normalizeFieldName(name)))) {
+      categories.add(rule.category)
+    }
+  }
+
+  if (KNOWN_GENERATOR_TERMS.some((term) => normalizedValue.includes(term))) {
+    categories.add('generator')
+  }
+
+  return [...categories]
+}
+
+function collectMetadataFindings(value: unknown, path: string[] = []): MetadataFinding[] {
+  if (value === undefined || value === null) return []
+  if (value instanceof Uint8Array) return []
+
+  if (Array.isArray(value)) {
+    return value.flatMap((entry, index) => collectMetadataFindings(entry, [...path, String(index)]))
+  }
+
+  if (value instanceof Date || typeof value !== 'object') {
+    const text = stringifyMetadataValue(value)
+    if (!text) return []
+
+    return categoriesForField(path, text).map((category) => ({
+      source: sourceFromPath(path),
+      category,
+      field: path.join('.') || 'metadata',
+      value: text,
+      matchedGeneratorTerm: KNOWN_GENERATOR_TERMS.find((term) => text.toLowerCase().includes(term)),
+    }))
+  }
+
+  return Object.entries(value as Record<string, unknown>).flatMap(([key, entry]) =>
+    collectMetadataFindings(entry, [...path, key]),
+  )
+}
+
+function hasStructuredMetadata(parsed: unknown) {
+  return Boolean(parsed && typeof parsed === 'object' && Object.keys(parsed).length > 0)
+}
+
+function hasReadableMetadataMarkers(sample: string) {
+  return (
+    sample.includes('exif') ||
+    sample.includes('xmp') ||
+    sample.includes('iptc') ||
+    sample.includes('photoshop') ||
+    sample.includes('software')
+  )
+}
+
+function rawMetadataFindings(sample: string): MetadataFinding[] {
+  const findings: MetadataFinding[] = []
+
+  for (const term of KNOWN_GENERATOR_TERMS) {
+    const index = sample.indexOf(term)
+
+    if (index === -1) continue
+
+    const start = Math.max(0, index - 48)
+    const end = Math.min(sample.length, index + term.length + 72)
+    findings.push({
+      source: 'raw',
+      category: 'generator',
+      field: 'readable-bytes',
+      value: sample.slice(start, end).trim(),
+      matchedGeneratorTerm: term,
+    })
+  }
+
+  return findings
+}
+
+export async function parseMetadata(bytes: ArrayBuffer, sample = decodeTextSample(bytes)) {
+  let parsed: unknown
+  let parserError: string | undefined
+
+  try {
+    const options = {
+      tiff: true,
+      ifd0: {},
+      exif: true,
+      xmp: { parse: true, multiSegment: true },
+      iptc: true,
+      userComment: true,
+      mergeOutput: false,
+      silentErrors: true,
+    } as ExifrOptions
+    parsed = await exifr.parse(bytes, options)
+  } catch (error) {
+    parserError = error instanceof Error ? error.message : String(error)
+  }
+
+  const findings = [...collectMetadataFindings(parsed), ...rawMetadataFindings(sample)]
+  const present = hasStructuredMetadata(parsed) || hasReadableMetadataMarkers(sample)
+  const generatorTerm = findings.find((finding) => finding.matchedGeneratorTerm)?.matchedGeneratorTerm
+
+  if (generatorTerm) {
+    return {
+      state: 'found',
+      presence: 'present',
+      detail: `Structured metadata contains a known generator marker matching "${generatorTerm}".`,
+      findings,
+      parser: { name: 'exifr', parsed: hasStructuredMetadata(parsed), error: parserError },
+    } satisfies MetadataReport
+  }
+
+  if (present) {
+    return {
+      state: 'clear',
+      presence: 'present',
+      detail: findings.length
+        ? 'Metadata is present, but no known generator marker was found in provenance-focused fields.'
+        : 'Metadata markers are present, but no provenance-focused EXIF/XMP/IPTC fields were recognized.',
+      findings,
+      parser: { name: 'exifr', parsed: hasStructuredMetadata(parsed), error: parserError },
+    } satisfies MetadataReport
+  }
+
+  return {
+    state: 'warning',
+    presence: 'missing',
+    detail: 'No EXIF, XMP, or IPTC metadata was found by the local parser or readable marker scan.',
+    findings,
+    parser: { name: 'exifr', parsed: false, error: parserError },
+  } satisfies MetadataReport
+}
+
 export function detectC2pa(sample: string): MarkerCheck {
   const found =
     sample.includes('c2pa') ||
@@ -147,19 +388,6 @@ export function detectC2pa(sample: string): MarkerCheck {
   }
 }
 
-export function detectGeneratorMetadata(sample: string): MarkerCheck {
-  const term = KNOWN_GENERATOR_TERMS.find((entry) => sample.includes(entry))
-
-  return {
-    id: 'metadata',
-    label: 'Generator metadata',
-    state: term ? 'found' : 'clear',
-    detail: term
-      ? `Found metadata text matching "${term}". Review the technical metadata before sharing.`
-      : 'No common AI generator names were found in readable metadata.',
-  }
-}
-
 export function detectSynthIdSupport(): MarkerCheck {
   return {
     id: 'synthid',
@@ -171,12 +399,7 @@ export function detectSynthIdSupport(): MarkerCheck {
 }
 
 export function detectStructure(fileType: string, sample: string): MarkerCheck {
-  const hasMetadata =
-    sample.includes('exif') ||
-    sample.includes('xmp') ||
-    sample.includes('iptc') ||
-    sample.includes('photoshop') ||
-    sample.includes('software')
+  const hasMetadata = hasReadableMetadataMarkers(sample)
 
   return {
     id: 'structure',
@@ -191,7 +414,6 @@ export function detectStructure(fileType: string, sample: string): MarkerCheck {
 export function buildChecks(fileType: string, sample: string) {
   return [
     detectC2pa(sample),
-    detectGeneratorMetadata(sample),
     detectSynthIdSupport(),
     detectStructure(fileType, sample),
   ]
@@ -199,6 +421,7 @@ export function buildChecks(fileType: string, sample: string) {
 
 export async function analyzeBytes(input: AnalysisInput): Promise<AssetReport> {
   const sample = decodeTextSample(input.bytes)
+  const metadata = await parseMetadata(input.bytes, sample)
 
   return {
     id: input.id ?? crypto.randomUUID(),
@@ -210,12 +433,15 @@ export async function analyzeBytes(input: AnalysisInput): Promise<AssetReport> {
     checkedAt: input.checkedAt ?? new Date().toISOString(),
     previewUrl: input.previewUrl,
     checks: buildChecks(input.fileType, sample),
+    metadata,
   }
 }
 
 export function reportStatus(report: AssetReport) {
+  if (report.metadata.state === 'found') return 'Known marker found'
   if (report.checks.some((check) => check.state === 'found')) return 'Known marker found'
   if (report.checks.some((check) => check.state === 'warning')) return 'No known marker detected'
+  if (report.metadata.state === 'warning') return 'No known marker detected'
   return 'Clean local scan'
 }
 
@@ -278,6 +504,7 @@ export function buildCertificate(report: AssetReport): AntiSlopCertificateV1 {
       state: check.state,
       detail: check.detail,
     })),
+    metadata: report.metadata,
     limitations: [...CERTIFICATE_LIMITATIONS],
   }
 }

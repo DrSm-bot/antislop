@@ -231,6 +231,68 @@ button:focus-visible,
   gap: 10px;
 }
 
+.section-heading {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  align-items: baseline;
+  margin: 0 0 10px;
+}
+
+.section-heading h3 {
+  margin: 0;
+  font-size: 17px;
+}
+
+.section-heading span {
+  color: #657166;
+  font-size: 12px;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.metadata-panel {
+  display: grid;
+  gap: 10px;
+  margin-top: 22px;
+}
+
+.metadata-list {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+}
+
+.metadata-list div {
+  padding: 12px;
+  border: 1px solid rgba(65, 83, 71, 0.14);
+  border-radius: 8px;
+  background: #f6f8f2;
+}
+
+.metadata-list dt {
+  color: #657166;
+  font-size: 12px;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.metadata-list dd {
+  display: grid;
+  gap: 5px;
+  margin: 6px 0 0;
+  overflow-wrap: anywhere;
+}
+
+.metadata-list dd strong {
+  font-size: 13px;
+}
+
+.metadata-list dd span {
+  color: #526158;
+  line-height: 1.45;
+}
+
 .check-row {
   display: grid;
   grid-template-columns: 92px 1fr;
