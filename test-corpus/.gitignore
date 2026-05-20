@@ -1,0 +1,8 @@
+# Keep real fixture assets and private manifests local by default.
+/local/*/**
+!/local/*/.gitkeep
+/manifest.local.json
+
+# Expected analysis snapshots may be committed when licensing allows.
+!/expected/
+!/expected/.gitkeep
