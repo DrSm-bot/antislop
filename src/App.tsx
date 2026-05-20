@@ -268,8 +268,8 @@ function App() {
           <p className="eyebrow">Private, browser-only asset marker check</p>
           <h1>AntiSlop</h1>
           <p className="lede">
-            Scan game art for known AI provenance markers, keep the file on your
-            machine, and export a careful report for review.
+            Check image assets for known AI provenance markers, keep files on your
+            device, and export a comprehensive report for review.
           </p>
         </div>
 
