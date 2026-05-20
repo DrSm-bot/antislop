@@ -13,6 +13,7 @@ It checks image assets locally for known AI provenance markers and exports repor
 - SHA-256 hash for the exact checked file.
 - Browser thumbnail and file summary.
 - Readable metadata scan for common generator strings.
+- Worker-backed hashing and metadata analysis to reduce UI blocking on larger batches.
 - C2PA / Content Credentials adapter with browser WASM validation where supported.
 - Explicit unsupported status for vendor-only invisible watermark checks such as SynthID.
 - Visible result buckets: `AI markers found`, `No AI markers found`, and `Could not complete check`.

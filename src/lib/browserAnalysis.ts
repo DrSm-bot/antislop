@@ -1,5 +1,6 @@
-import { analyzeBytes, type AssetReport } from '../core/analysis'
+import type { AssetReport } from '../core/analysis'
 import { verifyC2paInBrowser } from './c2paWebAdapter'
+import { analyzeBytesOffMainThread } from './workerAnalysis'
 
 const formatter = new Intl.NumberFormat('en')
 
@@ -21,7 +22,7 @@ export async function analyzeImageFile(file: File): Promise<AssetReport> {
   const previewUrl = URL.createObjectURL(file)
   const c2pa = await verifyC2paInBrowser(bytes, file.type || 'unknown')
 
-  return analyzeBytes({
+  return analyzeBytesOffMainThread({
     bytes,
     fileName: file.name,
     fileType: file.type || 'unknown',
