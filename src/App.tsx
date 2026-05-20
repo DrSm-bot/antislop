@@ -1,170 +1,12 @@
 import { useMemo, useState } from 'react'
+import { analyzeImageFile } from './lib/browserAnalysis'
+import {
+  buildCertificate,
+  formatBytes,
+  reportStatus,
+  type AssetReport,
+} from './core/analysis'
 import './App.css'
-
-type CheckState = 'clear' | 'warning' | 'found'
-
-type MarkerCheck = {
-  id: string
-  label: string
-  state: CheckState
-  detail: string
-}
-
-type AssetReport = {
-  id: string
-  fileName: string
-  fileType: string
-  fileSize: number
-  dimensions: string
-  hash: string
-  checkedAt: string
-  previewUrl: string
-  checks: MarkerCheck[]
-}
-
-const KNOWN_GENERATOR_TERMS = [
-  'ai generated',
-  'ai-generated',
-  'chatgpt',
-  'dall-e',
-  'dalle',
-  'gpt-image',
-  'midjourney',
-  'stable diffusion',
-  'stability ai',
-  'adobe firefly',
-  'firefly',
-  'imagen',
-  'gemini',
-  'leonardo',
-  'comfyui',
-  'automatic1111',
-]
-
-const formatter = new Intl.NumberFormat('en')
-
-function formatBytes(bytes: number) {
-  if (bytes < 1024) return `${bytes} B`
-  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`
-  return `${(bytes / 1024 / 1024).toFixed(1)} MB`
-}
-
-function toHex(buffer: ArrayBuffer) {
-  return Array.from(new Uint8Array(buffer))
-    .map((byte) => byte.toString(16).padStart(2, '0'))
-    .join('')
-}
-
-function decodeTextSample(bytes: ArrayBuffer) {
-  const view = new Uint8Array(bytes.slice(0, Math.min(bytes.byteLength, 2_000_000)))
-  let sample = ''
-
-  for (const byte of view) {
-    sample += byte >= 32 && byte <= 126 ? String.fromCharCode(byte) : ' '
-  }
-
-  return sample.replace(/\s+/g, ' ').toLowerCase()
-}
-
-function detectC2pa(sample: string): MarkerCheck {
-  const found =
-    sample.includes('c2pa') ||
-    sample.includes('contentauthenticity') ||
-    sample.includes('content credentials')
-
-  return {
-    id: 'c2pa',
-    label: 'C2PA / Content Credentials',
-    state: found ? 'warning' : 'clear',
-    detail: found
-      ? 'Possible C2PA manifest bytes found. Full signature validation is planned for the WASM verifier module.'
-      : 'No C2PA marker bytes found in the local file scan.',
-  }
-}
-
-function detectGeneratorMetadata(sample: string): MarkerCheck {
-  const term = KNOWN_GENERATOR_TERMS.find((entry) => sample.includes(entry))
-
-  return {
-    id: 'metadata',
-    label: 'Generator metadata',
-    state: term ? 'found' : 'clear',
-    detail: term
-      ? `Found metadata text matching “${term}”. Review the technical metadata before sharing.`
-      : 'No common AI generator names were found in readable metadata.',
-  }
-}
-
-function detectSynthIdSupport(): MarkerCheck {
-  return {
-    id: 'synthid',
-    label: 'SynthID-style invisible watermarks',
-    state: 'warning',
-    detail:
-      'Not locally verifiable yet. Vendor-specific detectors are not generally available for offline browser use.',
-  }
-}
-
-function detectStructure(file: File, sample: string): MarkerCheck {
-  const hasMetadata =
-    sample.includes('exif') ||
-    sample.includes('xmp') ||
-    sample.includes('iptc') ||
-    sample.includes('photoshop') ||
-    sample.includes('software')
-
-  return {
-    id: 'structure',
-    label: 'File structure and metadata presence',
-    state: hasMetadata ? 'clear' : 'warning',
-    detail: hasMetadata
-      ? `${file.type || 'Unknown format'} contains readable metadata or structured marker segments.`
-      : 'No readable metadata markers found. This is common after export, compression, or screenshot workflows.',
-  }
-}
-
-async function imageDimensions(file: File) {
-  const url = URL.createObjectURL(file)
-
-  try {
-    const image = new Image()
-    image.src = url
-    await image.decode()
-    return `${formatter.format(image.naturalWidth)} x ${formatter.format(image.naturalHeight)}`
-  } finally {
-    URL.revokeObjectURL(url)
-  }
-}
-
-async function analyzeFile(file: File): Promise<AssetReport> {
-  const bytes = await file.arrayBuffer()
-  const hash = toHex(await crypto.subtle.digest('SHA-256', bytes))
-  const sample = decodeTextSample(bytes)
-  const previewUrl = URL.createObjectURL(file)
-
-  return {
-    id: crypto.randomUUID(),
-    fileName: file.name,
-    fileType: file.type || 'unknown',
-    fileSize: file.size,
-    dimensions: file.type.startsWith('image/') ? await imageDimensions(file) : 'not an image',
-    hash,
-    checkedAt: new Date().toISOString(),
-    previewUrl,
-    checks: [
-      detectC2pa(sample),
-      detectGeneratorMetadata(sample),
-      detectSynthIdSupport(),
-      detectStructure(file, sample),
-    ],
-  }
-}
-
-function reportStatus(report: AssetReport) {
-  if (report.checks.some((check) => check.state === 'found')) return 'Known marker found'
-  if (report.checks.some((check) => check.state === 'warning')) return 'No known marker detected'
-  return 'Clean local scan'
-}
 
 function App() {
   const [reports, setReports] = useState<AssetReport[]>([])
@@ -174,25 +16,7 @@ function App() {
   const certificate = useMemo(() => {
     if (!activeReport) return ''
 
-    return JSON.stringify(
-      {
-        tool: 'AntiSlop',
-        version: '0.1.0',
-        statement:
-          'Known AI-generation provenance markers were checked locally. This report does not prove human authorship.',
-        file: {
-          name: activeReport.fileName,
-          sha256: activeReport.hash,
-          size: activeReport.fileSize,
-          type: activeReport.fileType,
-          dimensions: activeReport.dimensions,
-        },
-        checkedAt: activeReport.checkedAt,
-        checks: activeReport.checks,
-      },
-      null,
-      2,
-    )
+    return JSON.stringify(buildCertificate(activeReport), null, 2)
   }, [activeReport])
 
   async function onFiles(files: FileList | null) {
@@ -201,7 +25,7 @@ function App() {
 
     try {
       const imageFiles = Array.from(files).filter((file) => file.type.startsWith('image/'))
-      const nextReports = await Promise.all(imageFiles.map(analyzeFile))
+      const nextReports = await Promise.all(imageFiles.map(analyzeImageFile))
       setReports((current) => [...nextReports, ...current])
     } finally {
       setIsScanning(false)
