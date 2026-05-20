@@ -13,7 +13,7 @@ It scans image files locally for known AI provenance markers and exports a repor
 - C2PA / Content Credentials adapter with browser WASM validation where supported.
 - Explicit unsupported status for vendor-only invisible watermark checks such as SynthID.
 - JSON report export for archives and automation.
-- Self-contained HTML report export with print-friendly styling.
+- Self-contained single-asset and full-batch HTML reports with print-friendly styling.
 
 ## C2PA Capability
 

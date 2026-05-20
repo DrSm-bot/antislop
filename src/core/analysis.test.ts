@@ -1,11 +1,13 @@
 import {
   buildCertificate,
   buildHtmlReport,
+  buildProjectHtmlReport,
   buildReportPackageEntries,
   certificateFileName,
   decodeTextSample,
   analyzeBytes,
   htmlReportFileName,
+  projectHtmlReportFileName,
   reportStatus,
   summarizeReportStatuses,
   stringifyCertificate,
@@ -243,6 +245,21 @@ assert(htmlReport.includes('AntiSlop HTML Report'), 'HTML report identifies repo
 assert(htmlReport.includes('data:image/png;base64,AAAA'), 'HTML report embeds preview data')
 assert(htmlReport.includes('@media print'), 'HTML report includes print styles')
 assert(htmlReport.includes('Evidence of AI generation found'), 'HTML report includes result headline')
+
+const projectHtmlReport = buildProjectHtmlReport(
+  [generatorMetadata, validC2pa],
+  { [generatorMetadata.id]: 'data:image/png;base64,BBBB' },
+  '2026-05-20T12:00:00.000Z',
+)
+assert(projectHtmlReport.includes('AntiSlop Full HTML Report'), 'full HTML report identifies report type')
+assert(projectHtmlReport.includes('Why Cloud Scanners Are Not Used'), 'full HTML report explains cloud scanner choice')
+assert(projectHtmlReport.includes('Methods Used'), 'full HTML report explains methods')
+assert(projectHtmlReport.includes('data:image/png;base64,BBBB'), 'full HTML report embeds asset previews')
+assert(projectHtmlReport.includes('@media print'), 'full HTML report includes print styles')
+assert(
+  projectHtmlReportFileName(new Date('2026-05-20T12:00:00.000Z')) === 'antislop-full-report-2026-05-20.html',
+  'full HTML report filename is stable by date',
+)
 
 const summaryCounts = summarizeReportStatuses([generatorMetadata, stripped, validC2pa])
 assert(summaryCounts['AI markers found'] === 1, 'summary counts found reports')

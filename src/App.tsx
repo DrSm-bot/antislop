@@ -4,9 +4,11 @@ import { createReportZipBlob, reportZipFileName } from './lib/zipExport'
 import {
   buildCertificate,
   buildHtmlReport,
+  buildProjectHtmlReport,
   certificateFileName,
   formatBytes,
   htmlReportFileName,
+  projectHtmlReportFileName,
   reportStatus,
   resultWording,
   summarizeReportStatuses,
@@ -203,6 +205,22 @@ function App() {
     URL.revokeObjectURL(url)
   }
 
+  async function downloadFullHtmlReport() {
+    const previews = Object.fromEntries(
+      await Promise.all(
+        reports.map(async (report) => [report.id, await previewUrlToDataUrl(report.previewUrl)] as const),
+      ),
+    )
+    const blob = new Blob([buildProjectHtmlReport(reports, previews)], { type: 'text/html' })
+    const url = URL.createObjectURL(blob)
+    const anchor = document.createElement('a')
+    anchor.href = url
+    anchor.download = projectHtmlReportFileName()
+    anchor.rel = 'noopener'
+    anchor.click()
+    URL.revokeObjectURL(url)
+  }
+
   function downloadAllReports() {
     const blob = createReportZipBlob(reports)
     const url = URL.createObjectURL(blob)
@@ -279,11 +297,23 @@ function App() {
                 type="button"
                 onClick={downloadAllReports}
                 disabled={reports.length === 0}
-                aria-label="Download a ZIP containing reports for all checked assets"
+                aria-label="Download a ZIP containing JSON reports for all checked assets"
               >
-                Download All Reports
+                Download JSON Report Pack
               </button>
               <span className="action-hint">ZIP with summary and one JSON report per asset</span>
+            </div>
+            <div>
+              <button
+                type="button"
+                className="secondary-button"
+                onClick={() => void downloadFullHtmlReport()}
+                disabled={reports.length === 0}
+                aria-label="Download a single HTML report for all checked assets"
+              >
+                Download Full HTML Report
+              </button>
+              <span className="action-hint">Single printable HTML report covering the whole batch</span>
             </div>
             {queueProgress.failed > 0 || queueProgress.skipped > 0 ? (
               <span>
