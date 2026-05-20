@@ -245,6 +245,7 @@ assert(htmlReport.includes('AntiSlop HTML Report'), 'HTML report identifies repo
 assert(htmlReport.includes('data:image/png;base64,AAAA'), 'HTML report embeds preview data')
 assert(htmlReport.includes('@media print'), 'HTML report includes print styles')
 assert(htmlReport.includes('Evidence of AI generation found'), 'HTML report includes result headline')
+assert(htmlReport.includes('<details class="expandable">'), 'HTML report collapses long values')
 
 const projectHtmlReport = buildProjectHtmlReport(
   [generatorMetadata, validC2pa],
@@ -256,6 +257,7 @@ assert(projectHtmlReport.includes('Why Cloud Scanners Are Not Used'), 'full HTML
 assert(projectHtmlReport.includes('Methods Used'), 'full HTML report explains methods')
 assert(projectHtmlReport.includes('data:image/png;base64,BBBB'), 'full HTML report embeds asset previews')
 assert(projectHtmlReport.includes('@media print'), 'full HTML report includes print styles')
+assert(projectHtmlReport.includes('compact-value hash'), 'full HTML report collapses hashes')
 assert(
   projectHtmlReportFileName(new Date('2026-05-20T12:00:00.000Z')) === 'antislop-full-report-2026-05-20.html',
   'full HTML report filename is stable by date',

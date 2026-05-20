@@ -597,6 +597,21 @@ function stateLabel(state: CheckState) {
   return 'No marker found'
 }
 
+function shortenMiddle(value: string, head = 18, tail = 10) {
+  if (value.length <= head + tail + 3) return value
+  return `${value.slice(0, head)}...${value.slice(-tail)}`
+}
+
+function expandableValue(value: string, label: string, className = 'expandable') {
+  const shortValue = shortenMiddle(value)
+
+  if (shortValue === value) return `<span class="${escapeHtml(className)}">${escapeHtml(value)}</span>`
+
+  return `<details class="${escapeHtml(className)}"><summary aria-label="Show full ${escapeHtml(
+    label,
+  )}">${escapeHtml(shortValue)}</summary><span>${escapeHtml(value)}</span></details>`
+}
+
 export function buildHtmlReport(report: AssetReport, previewDataUrl?: string) {
   const status = reportStatus(report)
   const tone = status === 'AI markers found' ? 'found' : status === 'Could not complete check' ? 'warning' : 'clear'
@@ -649,6 +664,8 @@ export function buildHtmlReport(report: AssetReport, previewDataUrl?: string) {
     .fact { padding: 12px; border: 1px solid #d9e2da; border-radius: 8px; background: #fff; }
     .fact span { display: block; color: #5c6b60; font-size: 11px; font-weight: 900; text-transform: uppercase; }
     .fact strong { display: block; margin-top: 4px; overflow-wrap: anywhere; }
+    details.expandable summary { cursor: pointer; color: #17201a; font-weight: 900; overflow-wrap: anywhere; }
+    details.expandable span { display: block; margin-top: 6px; color: #445247; font: 12px ui-monospace, SFMono-Regular, Consolas, monospace; overflow-wrap: anywhere; }
     table { width: 100%; border-collapse: collapse; margin-bottom: 22px; background: #fff; }
     th, td { padding: 10px; border: 1px solid #d9e2da; text-align: left; vertical-align: top; }
     th { color: #46534b; font-size: 12px; text-transform: uppercase; }
@@ -679,12 +696,12 @@ export function buildHtmlReport(report: AssetReport, previewDataUrl?: string) {
       </div>
     </header>
     <section class="facts" aria-label="File facts">
-      <div class="fact"><span>File</span><strong>${escapeHtml(report.fileName)}</strong></div>
+      <div class="fact"><span>File</span><strong>${expandableValue(report.fileName, 'file name')}</strong></div>
       <div class="fact"><span>Checked</span><strong>${escapeHtml(report.checkedAt)}</strong></div>
       <div class="fact"><span>Dimensions</span><strong>${escapeHtml(report.dimensions)}</strong></div>
       <div class="fact"><span>Size</span><strong>${escapeHtml(formatBytes(report.fileSize))}</strong></div>
       <div class="fact"><span>Format</span><strong>${escapeHtml(report.fileType)}</strong></div>
-      <div class="fact"><span>SHA-256</span><strong>${escapeHtml(report.hash)}</strong></div>
+      <div class="fact"><span>SHA-256</span><strong>${expandableValue(report.hash, 'SHA-256 hash')}</strong></div>
     </section>
     <section>
       <h2>Checks Performed</h2>
@@ -717,12 +734,14 @@ export function buildProjectHtmlReport(
       const tone = status === 'AI markers found' ? 'found' : status === 'Could not complete check' ? 'warning' : 'clear'
       const preview = previewDataUrls[report.id]
       const evidence = markerEvidenceSummary(report)
+      const fileLabel = expandableValue(report.fileName, 'file name', 'compact-value')
+      const hashLabel = expandableValue(report.hash, 'SHA-256 hash', 'compact-value hash')
       return `<tr>
         <td>${preview ? `<img src="${escapeHtml(preview)}" alt="Preview of ${escapeHtml(report.fileName)}">` : ''}</td>
-        <td><strong>${escapeHtml(report.fileName)}</strong><span>${escapeHtml(report.dimensions)} · ${escapeHtml(formatBytes(report.fileSize))}</span></td>
+        <td><strong>${fileLabel}</strong><span>${escapeHtml(report.dimensions)} · ${escapeHtml(formatBytes(report.fileSize))}</span></td>
         <td><span class="pill ${escapeHtml(tone)}">${escapeHtml(status)}</span></td>
         <td>${escapeHtml(evidence.length ? evidence.join(', ') : 'No supported generative AI marker recorded')}</td>
-        <td><code>${escapeHtml(report.hash)}</code></td>
+        <td>${hashLabel}</td>
       </tr>`
     })
     .join('')
@@ -753,7 +772,9 @@ export function buildProjectHtmlReport(
     th { color: #46534b; font-size: 12px; text-transform: uppercase; }
     td img { width: 86px; aspect-ratio: 4 / 3; object-fit: cover; border-radius: 6px; background: #dce5dd; }
     td span { display: block; margin-top: 4px; color: #5c6b60; font-size: 12px; }
-    code { overflow-wrap: anywhere; font-size: 12px; }
+    .compact-value summary { cursor: pointer; color: #17201a; font-weight: 900; overflow-wrap: anywhere; }
+    .compact-value > span { display: block; margin-top: 6px; color: #445247; font: 12px ui-monospace, SFMono-Regular, Consolas, monospace; overflow-wrap: anywhere; }
+    .hash summary { font: 12px ui-monospace, SFMono-Regular, Consolas, monospace; }
     .pill { display: inline-flex; padding: 5px 9px; border: 1px solid #9aa89b; border-radius: 999px; font-size: 12px; font-weight: 900; white-space: nowrap; }
     .pill.clear { border-color: #7aa673; color: #18521f; background: #e7f4e4; }
     .pill.found { border-color: #b87070; color: #6b1d1d; background: #fae8e8; }
