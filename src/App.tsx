@@ -232,6 +232,35 @@ function App() {
     URL.revokeObjectURL(url)
   }
 
+  function clearReports() {
+    if (reports.length === 0) return
+
+    const confirmed = window.confirm('Start a new report? This removes all scanned assets from the current queue.')
+    if (!confirmed) return
+
+    reports.forEach((report) => URL.revokeObjectURL(report.previewUrl))
+    setReports([])
+    setSelectedReportId(null)
+    setScanNotice(null)
+    setQueueProgress({ total: 0, completed: 0, failed: 0, skipped: 0 })
+  }
+
+  function removeReport(report: AssetReport) {
+    const confirmed = window.confirm(`Remove "${report.fileName}" from this report?`)
+    if (!confirmed) return
+
+    URL.revokeObjectURL(report.previewUrl)
+    setReports((current) => {
+      const nextReports = current.filter((entry) => entry.id !== report.id)
+
+      if (selectedReportId === report.id) {
+        setSelectedReportId(nextReports[0]?.id ?? null)
+      }
+
+      return nextReports
+    })
+  }
+
   return (
     <main className="app-shell">
       <section className="hero-panel">
@@ -292,6 +321,18 @@ function App() {
           </dl>
 
           <div className="batch-actions">
+            <div>
+              <button
+                type="button"
+                className="danger-button"
+                onClick={clearReports}
+                disabled={reports.length === 0}
+                aria-label="Start a new report and clear all checked assets"
+              >
+                New Report
+              </button>
+              <span className="action-hint">Clear queue after confirmation</span>
+            </div>
             <div>
               <button
                 type="button"
@@ -364,6 +405,14 @@ function App() {
                       <strong>{report.fileName}</strong>
                       <em>{reportStatus(report)}</em>
                     </span>
+                  </button>
+                  <button
+                    type="button"
+                    className="remove-asset-button"
+                    onClick={() => removeReport(report)}
+                    aria-label={`Remove ${report.fileName} from the report after confirmation`}
+                  >
+                    Remove
                   </button>
                 </article>
               ))}
@@ -529,6 +578,41 @@ function App() {
             </div>
           )}
         </section>
+      </section>
+
+      <section className="about-panel" aria-labelledby="about-heading">
+        <p className="eyebrow">Methods and Privacy</p>
+        <h2 id="about-heading">What AntiSlop checks</h2>
+        <div className="about-grid">
+          <article>
+            <h3>Local provenance checks</h3>
+            <p>
+              AntiSlop reads images in your browser and looks for known AI provenance markers.
+              Files are not uploaded while checking, exporting, or building reports.
+            </p>
+          </article>
+          <article>
+            <h3>C2PA / Content Credentials</h3>
+            <p>
+              Supported files are checked with browser-side C2PA tooling. Valid, invalid,
+              missing, and unsupported states are recorded instead of hidden behind a generic score.
+            </p>
+          </article>
+          <article>
+            <h3>Metadata and readable markers</h3>
+            <p>
+              EXIF, XMP, IPTC, and readable file bytes are scanned for generator,
+              provider, workflow, prompt, and provenance strings commonly left by image tools.
+            </p>
+          </article>
+          <article>
+            <h3>No cloud scanner</h3>
+            <p>
+              AntiSlop avoids cloud-only scanners from major AI labs because creators should not
+              have to submit unpublished work to third-party AI providers just to inspect it.
+            </p>
+          </article>
+        </div>
       </section>
     </main>
   )
