@@ -1,31 +1,151 @@
-import { useState } from 'react'
+import { useMemo, useState, type DragEvent } from 'react'
 import { analyzeImageFile } from './lib/browserAnalysis'
+import { createReportZipBlob, reportZipFileName } from './lib/zipExport'
 import {
   buildCertificate,
   certificateFileName,
   formatBytes,
   reportStatus,
+  summarizeReportStatuses,
   stringifyCertificate,
   type AssetReport,
 } from './core/analysis'
 import './App.css'
 
+type ScanNotice =
+  | {
+      tone: 'info' | 'success' | 'warning' | 'error'
+      title: string
+      detail: string
+    }
+  | null
+
+type QueueProgress = {
+  total: number
+  completed: number
+  failed: number
+  skipped: number
+  currentFile?: string
+}
+
+const QUEUE_YIELD_EVERY = 2
+
+function pauseForPaint() {
+  return new Promise<void>((resolve) => {
+    window.setTimeout(resolve, 0)
+  })
+}
+
 function App() {
   const [reports, setReports] = useState<AssetReport[]>([])
   const [isScanning, setIsScanning] = useState(false)
+  const [scanNotice, setScanNotice] = useState<ScanNotice>(null)
+  const [queueProgress, setQueueProgress] = useState<QueueProgress>({
+    total: 0,
+    completed: 0,
+    failed: 0,
+    skipped: 0,
+  })
 
   const activeReport = reports[0]
+  const statusCounts = useMemo(() => summarizeReportStatuses(reports), [reports])
+
+  function summarizeScan(nextReports: AssetReport[], failedCount: number, skippedCount: number) {
+    const parts = [`${nextReports.length} checked`]
+
+    if (failedCount > 0) parts.push(`${failedCount} failed`)
+    if (skippedCount > 0) parts.push(`${skippedCount} skipped`)
+
+    return parts.join('. ') + '.'
+  }
+
   async function onFiles(files: FileList | null) {
     if (!files?.length) return
     setIsScanning(true)
+    setQueueProgress({ total: files.length, completed: 0, failed: 0, skipped: 0 })
+    setScanNotice({
+      tone: 'info',
+      title: 'Checking files',
+      detail: 'Reading selected files locally. Larger images may take a moment.',
+    })
 
     try {
-      const imageFiles = Array.from(files).filter((file) => file.type.startsWith('image/'))
-      const nextReports = await Promise.all(imageFiles.map(analyzeImageFile))
-      setReports((current) => [...nextReports, ...current])
+      const selectedFiles = Array.from(files)
+      const imageFiles = selectedFiles.filter((file) => file.type.startsWith('image/'))
+      const skippedCount = selectedFiles.length - imageFiles.length
+
+      if (imageFiles.length === 0) {
+        setScanNotice({
+          tone: 'warning',
+          title: 'No supported images selected',
+          detail: 'Choose PNG, JPEG, WebP, or another browser-readable image file.',
+        })
+        return
+      }
+
+      const nextReports: AssetReport[] = []
+      let failedCount = 0
+
+      for (const [index, file] of imageFiles.entries()) {
+        setQueueProgress({
+          total: imageFiles.length,
+          completed: index,
+          failed: failedCount,
+          skipped: skippedCount,
+          currentFile: file.name,
+        })
+
+        try {
+          nextReports.push(await analyzeImageFile(file))
+        } catch {
+          failedCount += 1
+        }
+
+        setQueueProgress({
+          total: imageFiles.length,
+          completed: index + 1,
+          failed: failedCount,
+          skipped: skippedCount,
+          currentFile: imageFiles[index + 1]?.name,
+        })
+
+        if ((index + 1) % QUEUE_YIELD_EVERY === 0) {
+          await pauseForPaint()
+        }
+      }
+
+      if (nextReports.length > 0) {
+        setReports((current) => [...nextReports, ...current])
+      }
+
+      if (failedCount > 0) {
+        setScanNotice({
+          tone: 'error',
+          title: failedCount === imageFiles.length ? 'Scan failed' : 'Some files could not be checked',
+          detail:
+            failedCount === imageFiles.length
+              ? 'The selected image could not be decoded or analyzed in this browser.'
+              : summarizeScan(nextReports, failedCount, skippedCount),
+        })
+        return
+      }
+
+      setScanNotice({
+        tone: skippedCount > 0 ? 'warning' : 'success',
+        title: skippedCount > 0 ? 'Checked supported images' : 'Scan complete',
+        detail:
+          skippedCount > 0
+            ? `${nextReports.length} checked. ${skippedCount} unsupported file${skippedCount === 1 ? '' : 's'} skipped.`
+            : `${nextReports.length} image${nextReports.length === 1 ? '' : 's'} checked locally.`,
+      })
     } finally {
       setIsScanning(false)
     }
+  }
+
+  function onDrop(event: DragEvent<HTMLLabelElement>) {
+    event.preventDefault()
+    void onFiles(event.dataTransfer.files)
   }
 
   function downloadCertificate(report: AssetReport) {
@@ -35,6 +155,18 @@ function App() {
     const anchor = document.createElement('a')
     anchor.href = url
     anchor.download = certificateFileName(report)
+    anchor.rel = 'noopener'
+    anchor.click()
+    URL.revokeObjectURL(url)
+  }
+
+  function downloadAllReports() {
+    const blob = createReportZipBlob(reports)
+    const url = URL.createObjectURL(blob)
+    const anchor = document.createElement('a')
+    anchor.href = url
+    anchor.download = reportZipFileName()
+    anchor.rel = 'noopener'
     anchor.click()
     URL.revokeObjectURL(url)
   }
@@ -51,16 +183,23 @@ function App() {
           </p>
         </div>
 
-        <label className="drop-zone">
+        <label
+          className={`drop-zone ${isScanning ? 'is-loading' : ''}`}
+          onDragOver={(event) => event.preventDefault()}
+          onDrop={onDrop}
+        >
           <input
             multiple
             accept="image/*"
             type="file"
+            aria-label="Choose image files to check"
+            aria-describedby="upload-help"
             onChange={(event) => void onFiles(event.target.files)}
           />
-          <span className="drop-title">Drop images here</span>
-          <span className="drop-detail">
-            PNG, JPEG, WebP, and other browser-readable image files. Nothing is uploaded.
+          <span className="drop-title">{isScanning ? 'Checking images...' : 'Drop images here'}</span>
+          <span className="drop-action">Browse files</span>
+          <span className="drop-detail" id="upload-help">
+            PNG, JPEG, WebP, and other browser-readable image files. Files stay on this device.
           </span>
         </label>
       </section>
@@ -69,31 +208,81 @@ function App() {
         <aside className="queue-panel">
           <div className="panel-heading">
             <h2>Asset Queue</h2>
-            <span>{isScanning ? 'Scanning...' : `${reports.length} checked`}</span>
+            <span aria-live="polite">
+              {isScanning
+                ? `${queueProgress.completed}/${queueProgress.total} scanning`
+                : `${reports.length} checked`}
+            </span>
           </div>
 
-          {reports.length === 0 ? (
+          <dl className="status-summary" aria-label="Report status summary">
+            <div>
+              <dt>Found</dt>
+              <dd>{statusCounts['Known marker found']}</dd>
+            </div>
+            <div>
+              <dt>Limited</dt>
+              <dd>{statusCounts['No known marker detected']}</dd>
+            </div>
+            <div>
+              <dt>Clean</dt>
+              <dd>{statusCounts['Clean local scan']}</dd>
+            </div>
+          </dl>
+
+          <div className="batch-actions">
+            <button type="button" onClick={downloadAllReports} disabled={reports.length === 0}>
+              Export ZIP
+            </button>
+            {queueProgress.failed > 0 || queueProgress.skipped > 0 ? (
+              <span>
+                {queueProgress.failed > 0 ? `${queueProgress.failed} failed` : null}
+                {queueProgress.failed > 0 && queueProgress.skipped > 0 ? ' / ' : null}
+                {queueProgress.skipped > 0 ? `${queueProgress.skipped} skipped` : null}
+              </span>
+            ) : null}
+          </div>
+
+          {isScanning ? (
+            <div className="queue-progress" aria-live="polite">
+              <progress value={queueProgress.completed} max={queueProgress.total || 1} />
+              <span>{queueProgress.currentFile ?? 'Preparing batch...'}</span>
+            </div>
+          ) : null}
+
+          {scanNotice ? (
+            <div className={`status-callout ${scanNotice.tone}`} role="status" aria-live="polite">
+              <strong>{scanNotice.title}</strong>
+              <span>{scanNotice.detail}</span>
+            </div>
+          ) : null}
+
+          {reports.length === 0 && !isScanning ? (
             <p className="empty-state">
-              Add an image to create the first local provenance report.
+              Add an image to create the first local provenance report. Unsupported files are skipped with a note.
             </p>
+          ) : reports.length === 0 ? (
+            <p className="empty-state loading-state">Preparing the first report...</p>
           ) : (
-            reports.map((report) => (
-              <article className="queue-item" key={report.id}>
-                <img src={report.previewUrl} alt="" />
-                <div>
-                  <strong>{report.fileName}</strong>
-                  <span>{reportStatus(report)}</span>
-                </div>
-              </article>
-            ))
+            <div className="queue-list" aria-label="Checked assets">
+              {reports.map((report) => (
+                <article className="queue-item" key={report.id}>
+                  <img src={report.previewUrl} alt="" />
+                  <div>
+                    <strong>{report.fileName}</strong>
+                    <span>{reportStatus(report)}</span>
+                  </div>
+                </article>
+              ))}
+            </div>
           )}
         </aside>
 
-        <section className="report-panel">
+        <section className="report-panel" aria-live="polite">
           {activeReport ? (
             <>
               <div className="report-summary">
-                <img src={activeReport.previewUrl} alt="Checked asset preview" />
+                <img src={activeReport.previewUrl} alt="" />
                 <div>
                   <p className="eyebrow">Certificate Preview</p>
                   <h2>{reportStatus(activeReport)}</h2>
@@ -101,7 +290,11 @@ function App() {
                     Checked {activeReport.fileName} locally. No result here can prove
                     human authorship; it records which known markers were checked.
                   </p>
-                  <button type="button" onClick={() => downloadCertificate(activeReport)}>
+                  <button
+                    type="button"
+                    onClick={() => downloadCertificate(activeReport)}
+                    aria-label={`Export JSON report for ${activeReport.fileName}`}
+                  >
                     Export JSON Report
                   </button>
                 </div>
@@ -227,7 +420,7 @@ function App() {
               <h2>Evidence, not vibes.</h2>
               <p>
                 AntiSlop checks for known provenance signals and produces a report
-                that says exactly what was inspected.
+                that says exactly what was inspected. Select an image to see the report here.
               </p>
             </div>
           )}
