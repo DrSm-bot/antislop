@@ -19,6 +19,48 @@ export type AssetReport = {
   checks: MarkerCheck[]
 }
 
+export type CertificatePreview =
+  | {
+      type: 'browser-object-url'
+      uri: string
+      note: string
+    }
+  | {
+      type: 'none'
+      note: string
+    }
+
+export type CertificateCheck = {
+  id: string
+  label: string
+  state: CheckState
+  detail: string
+}
+
+export type AntiSlopCertificateV1 = {
+  schema: 'antislop.certificate'
+  schemaVersion: 1
+  tool: {
+    name: 'AntiSlop'
+    version: string
+  }
+  result: {
+    status: ReturnType<typeof reportStatus>
+    wording: string
+  }
+  file: {
+    name: string
+    type: string
+    sizeBytes: number
+    dimensions: string
+    sha256: string
+  }
+  preview: CertificatePreview
+  checkedAt: string
+  checks: CertificateCheck[]
+  limitations: string[]
+}
+
 export type AnalysisInput = {
   bytes: ArrayBuffer
   fileName: string
@@ -47,6 +89,19 @@ export const KNOWN_GENERATOR_TERMS = [
   'leonardo',
   'comfyui',
   'automatic1111',
+] as const
+
+export const TOOL_VERSION = '0.1.0'
+
+export const CERTIFICATE_SCHEMA = 'antislop.certificate'
+
+export const CERTIFICATE_SCHEMA_VERSION = 1
+
+export const CERTIFICATE_LIMITATIONS = [
+  'This report records local technical checks only and does not prove human authorship.',
+  'C2PA markers are detected as readable marker bytes; cryptographic signature validation is not included in this MVP.',
+  'Invisible watermark systems such as SynthID are not locally verifiable in this browser-only scan.',
+  'Metadata can be stripped, edited, or absent after export, compression, screenshots, or social-media processing.',
 ] as const
 
 export function formatBytes(bytes: number) {
@@ -164,20 +219,78 @@ export function reportStatus(report: AssetReport) {
   return 'Clean local scan'
 }
 
-export function buildCertificate(report: AssetReport) {
+export function resultWording(report: AssetReport) {
+  const status = reportStatus(report)
+
+  if (status === 'Known marker found') {
+    return 'Known AI-generation or provenance marker text was found in the local scan.'
+  }
+
+  if (status === 'No known marker detected') {
+    return 'No known AI-generation marker was detected, but one or more checks remain limited or inconclusive.'
+  }
+
+  return 'No known AI-generation marker was detected by the current local checks.'
+}
+
+export function certificatePreview(report: AssetReport): CertificatePreview {
+  if (!report.previewUrl) {
+    return {
+      type: 'none',
+      note: 'No preview reference was available when this certificate was created.',
+    }
+  }
+
   return {
-    tool: 'AntiSlop',
-    version: '0.1.0',
-    statement:
-      'Known AI-generation provenance markers were checked locally. This report does not prove human authorship.',
+    type: 'browser-object-url',
+    uri: report.previewUrl,
+    note:
+      'Browser-local preview reference. Blob URLs are session-scoped and are not expected to resolve after export.',
+  }
+}
+
+export function buildCertificate(report: AssetReport): AntiSlopCertificateV1 {
+  const status = reportStatus(report)
+
+  return {
+    schema: CERTIFICATE_SCHEMA,
+    schemaVersion: CERTIFICATE_SCHEMA_VERSION,
+    tool: {
+      name: 'AntiSlop',
+      version: TOOL_VERSION,
+    },
+    result: {
+      status,
+      wording: resultWording(report),
+    },
     file: {
       name: report.fileName,
-      sha256: report.hash,
-      size: report.fileSize,
       type: report.fileType,
+      sizeBytes: report.fileSize,
       dimensions: report.dimensions,
+      sha256: report.hash,
     },
+    preview: certificatePreview(report),
     checkedAt: report.checkedAt,
-    checks: report.checks,
+    checks: report.checks.map((check) => ({
+      id: check.id,
+      label: check.label,
+      state: check.state,
+      detail: check.detail,
+    })),
+    limitations: [...CERTIFICATE_LIMITATIONS],
   }
+}
+
+export function stringifyCertificate(certificate: AntiSlopCertificateV1) {
+  return `${JSON.stringify(certificate, null, 2)}\n`
+}
+
+export function certificateFileName(report: AssetReport) {
+  const safeName = report.fileName
+    .trim()
+    .replace(/[^a-zA-Z0-9._-]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+
+  return `${safeName || 'asset'}.antislop-certificate-v1.json`
 }

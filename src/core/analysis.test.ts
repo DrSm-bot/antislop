@@ -1,4 +1,10 @@
-import { analyzeBytes, decodeTextSample } from './analysis.ts'
+import {
+  buildCertificate,
+  certificateFileName,
+  decodeTextSample,
+  analyzeBytes,
+  stringifyCertificate,
+} from './analysis.ts'
 
 function bytesFromText(value: string) {
   return new TextEncoder().encode(value).buffer
@@ -43,5 +49,43 @@ const stripped = await reportFor('\x00\x01\x02\xff')
 assert(checkState(stripped, 'metadata') === 'clear', 'binary-only sample has no generator flag')
 assert(checkState(stripped, 'structure') === 'warning', 'missing metadata markers are reported')
 assert(decodeTextSample(bytesFromText('A\x00B')) === 'a b', 'text sampler strips unreadable bytes')
+
+const certificate = buildCertificate(knownGenerator)
+assert(certificate.schema === 'antislop.certificate', 'certificate has a stable schema name')
+assert(certificate.schemaVersion === 1, 'certificate has a versioned schema')
+assert(certificate.tool.name === 'AntiSlop', 'certificate identifies the tool')
+assert(certificate.tool.version === '0.1.0', 'certificate records the tool version')
+assert(certificate.result.status === 'Known marker found', 'certificate records result status')
+assert(
+  certificate.result.wording ===
+    'Known AI-generation or provenance marker text was found in the local scan.',
+  'certificate records careful result wording',
+)
+assert(certificate.file.name === 'synthetic.png', 'certificate includes file name')
+assert(certificate.file.type === 'image/png', 'certificate includes file type')
+assert(certificate.file.sizeBytes === 'Software: Stable Diffusion XL'.length, 'certificate includes size')
+assert(certificate.file.dimensions === '1 x 1', 'certificate includes dimensions')
+assert(certificate.file.sha256.length === 64, 'certificate includes SHA-256')
+assert(certificate.preview.type === 'browser-object-url', 'certificate includes preview reference')
+assert(certificate.checkedAt === '2026-05-20T00:00:00.000Z', 'certificate includes timestamp')
+assert(certificate.checks.length === knownGenerator.checks.length, 'certificate includes check list')
+assert(
+  certificate.limitations.some((entry) => entry.includes('does not prove human authorship')),
+  'certificate avoids human authorship claims',
+)
+
+const serializedCertificate = stringifyCertificate(certificate)
+assert(serializedCertificate.endsWith('\n'), 'certificate JSON has a stable trailing newline')
+assert(
+  JSON.parse(serializedCertificate).schemaVersion === 1,
+  'serialized certificate remains parseable JSON',
+)
+assert(
+  certificateFileName({
+    ...knownGenerator,
+    fileName: ' test image @ 2x.png ',
+  }) === 'test-image-2x.png.antislop-certificate-v1.json',
+  'certificate filename is stable and sanitized',
+)
 
 console.log('analysis core tests passed')
