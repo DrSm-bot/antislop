@@ -38,6 +38,7 @@ function pauseForPaint() {
 
 function App() {
   const [reports, setReports] = useState<AssetReport[]>([])
+  const [selectedReportId, setSelectedReportId] = useState<string | null>(null)
   const [isScanning, setIsScanning] = useState(false)
   const [scanNotice, setScanNotice] = useState<ScanNotice>(null)
   const [queueProgress, setQueueProgress] = useState<QueueProgress>({
@@ -47,7 +48,7 @@ function App() {
     skipped: 0,
   })
 
-  const activeReport = reports[0]
+  const activeReport = reports.find((report) => report.id === selectedReportId) ?? reports[0]
   const statusCounts = useMemo(() => summarizeReportStatuses(reports), [reports])
 
   function summarizeScan(nextReports: AssetReport[], failedCount: number, skippedCount: number) {
@@ -116,6 +117,7 @@ function App() {
 
       if (nextReports.length > 0) {
         setReports((current) => [...nextReports, ...current])
+        setSelectedReportId(nextReports[0].id)
       }
 
       if (failedCount > 0) {
@@ -276,11 +278,19 @@ function App() {
             <div className="queue-list" role="list" aria-label="Checked assets">
               {reports.map((report) => (
                 <article className="queue-item" key={report.id} role="listitem">
-                  <img src={report.previewUrl} alt="" />
-                  <div>
-                    <strong>{report.fileName}</strong>
-                    <span>{reportStatus(report)}</span>
-                  </div>
+                  <button
+                    type="button"
+                    className={`queue-select ${activeReport?.id === report.id ? 'is-selected' : ''}`}
+                    onClick={() => setSelectedReportId(report.id)}
+                    aria-current={activeReport?.id === report.id ? 'true' : undefined}
+                    aria-label={`View report for ${report.fileName}`}
+                  >
+                    <img src={report.previewUrl} alt="" />
+                    <span>
+                      <strong>{report.fileName}</strong>
+                      <em>{reportStatus(report)}</em>
+                    </span>
+                  </button>
                 </article>
               ))}
             </div>
