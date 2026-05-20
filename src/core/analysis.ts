@@ -159,6 +159,10 @@ export const KNOWN_GENERATOR_TERMS = [
   'leonardo',
   'comfyui',
   'automatic1111',
+  'made with google ai',
+  'trainedalgorithmicmedia',
+  'trained algorithmic media',
+  '--v 7',
 ] as const
 
 const METADATA_FIELD_RULES: Array<{
