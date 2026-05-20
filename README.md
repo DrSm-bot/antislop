@@ -10,13 +10,39 @@ It scans image files locally for known AI provenance markers and exports a repor
 - SHA-256 hash for the exact checked file.
 - Browser thumbnail and file summary.
 - Readable metadata scan for common generator strings.
-- Initial C2PA / Content Credentials marker scan.
+- C2PA / Content Credentials adapter with browser WASM validation where supported.
 - Explicit unsupported status for vendor-only invisible watermark checks such as SynthID.
 - JSON certificate export.
 
+## C2PA Capability
+
+AntiSlop uses the current Content Authenticity Initiative browser package,
+`@contentauth/c2pa-web`, for C2PA reads in the static app. The older `c2pa-js`
+package name is only a security holding package on npm, and the unscoped `c2pa`
+package points at the legacy stack.
+
+For browser-supported formats, the adapter attempts local WASM verification and
+records:
+
+- validation state: `not-found`, `found`, `valid`, `invalid`, or `unsupported`
+- issuer or signing common name when the manifest exposes it
+- claim generator
+- C2PA action assertions when available
+- verifier errors or validation status notes
+
+Limitations:
+
+- The app remains static and browser-only; files are not uploaded.
+- If `@contentauth/c2pa-web` cannot initialize, cannot parse a file, or the file
+  type is unsupported, AntiSlop reports `unsupported` or falls back to marker-byte
+  sniffing. That fallback can only say marker-looking bytes were present; it is not
+  cryptographic C2PA validation.
+- `valid` means the local C2PA library returned a `Valid` or `Trusted` manifest
+  store state. It is still not proof of human authorship.
+
 ## Planned Checks
 
-- Full C2PA manifest validation through the Content Authenticity Initiative WASM/JS stack.
+- Broader C2PA fixture coverage with real signed public test assets.
 - EXIF, XMP, and IPTC parsing with structured field output.
 - Batch reports and ZIP export for project folders.
 - PDF/PNG certificate export.

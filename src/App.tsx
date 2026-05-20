@@ -144,6 +144,56 @@ function App() {
 
               <section className="metadata-panel">
                 <div className="section-heading">
+                  <h3>C2PA Verification</h3>
+                  <span>{activeReport.c2pa.state}</span>
+                </div>
+                <dl className="metadata-list">
+                  <div>
+                    <dt>Verifier</dt>
+                    <dd>
+                      <span>{activeReport.c2pa.source}</span>
+                    </dd>
+                  </div>
+                  {activeReport.c2pa.issuer ? (
+                    <div>
+                      <dt>Issuer</dt>
+                      <dd>
+                        <span>{activeReport.c2pa.issuer}</span>
+                      </dd>
+                    </div>
+                  ) : null}
+                  {activeReport.c2pa.claimGenerator ? (
+                    <div>
+                      <dt>Claim Generator</dt>
+                      <dd>
+                        <span>{activeReport.c2pa.claimGenerator}</span>
+                      </dd>
+                    </div>
+                  ) : null}
+                  {activeReport.c2pa.actions.map((action, index) => (
+                    <div key={action.action + '-' + (action.when ?? index)}>
+                      <dt>Action</dt>
+                      <dd>
+                        <strong>{action.action}</strong>
+                        {action.when ? <span>{action.when}</span> : null}
+                        {action.softwareAgent ? <span>{action.softwareAgent}</span> : null}
+                        {action.digitalSourceType ? <span>{action.digitalSourceType}</span> : null}
+                      </dd>
+                    </div>
+                  ))}
+                  {activeReport.c2pa.errors.map((error) => (
+                    <div key={error}>
+                      <dt>Verifier Note</dt>
+                      <dd>
+                        <span>{error}</span>
+                      </dd>
+                    </div>
+                  ))}
+                </dl>
+              </section>
+
+              <section className="metadata-panel">
+                <div className="section-heading">
                   <h3>EXIF / XMP / IPTC Metadata</h3>
                   <span>{activeReport.metadata.presence}</span>
                 </div>

@@ -3,8 +3,10 @@ import {
   certificateFileName,
   decodeTextSample,
   analyzeBytes,
+  reportStatus,
   stringifyCertificate,
 } from './analysis.ts'
+import { emptyC2paResult, type C2paVerificationResult } from './c2pa.ts'
 
 function bytesFromText(value: string) {
   return new TextEncoder().encode(value).buffer
@@ -69,6 +71,20 @@ async function reportForBytes(bytes: ArrayBuffer, fileName = 'synthetic.jpg') {
   })
 }
 
+async function reportWithC2pa(c2pa: C2paVerificationResult) {
+  return analyzeBytes({
+    bytes: bytesFromText('ordinary camera export with EXIF metadata'),
+    fileName: 'synthetic.png',
+    fileType: 'image/png',
+    fileSize: 41,
+    dimensions: '1 x 1',
+    previewUrl: 'blob:test',
+    checkedAt: '2026-05-20T00:00:00.000Z',
+    id: 'test-report',
+    c2pa,
+  })
+}
+
 function checkState(report: Awaited<ReturnType<typeof reportFor>>, id: string) {
   const check = report.checks.find((entry) => entry.id === id)
   assert(check !== undefined, `Missing ${id} check`)
@@ -91,6 +107,40 @@ assert(checkState(noMarker, 'structure') === 'clear', 'EXIF marker counts as met
 
 const possibleC2pa = await reportFor('asset includes Content Credentials manifest bytes')
 assert(checkState(possibleC2pa, 'c2pa') === 'warning', 'C2PA-like text is surfaced as possible provenance')
+assert(possibleC2pa.c2pa.state === 'found', 'byte sniffing records found C2PA marker state')
+
+const noC2pa = await reportFor('ordinary camera export with EXIF metadata')
+assert(noC2pa.c2pa.state === 'not-found', 'supported image without marker is not-found')
+
+const unsupportedC2pa = await analyzeBytes({
+  bytes: bytesFromText('plain text without image markers'),
+  fileName: 'synthetic.txt',
+  fileType: 'text/plain',
+  fileSize: 32,
+  dimensions: 'not an image',
+  previewUrl: 'blob:test',
+  checkedAt: '2026-05-20T00:00:00.000Z',
+  id: 'test-report',
+})
+assert(unsupportedC2pa.c2pa.state === 'unsupported', 'unsupported file types are explicit')
+assert(checkState(unsupportedC2pa, 'c2pa') === 'warning', 'unsupported C2PA is inconclusive')
+
+const validC2pa = await reportWithC2pa({
+  ...emptyC2paResult('valid', 'c2pa-web'),
+  issuer: 'Example CA',
+  claimGenerator: 'Example Tool 1.0',
+  actions: [{ action: 'c2pa.created', when: '2026-05-20T00:00:00Z' }],
+})
+assert(checkState(validC2pa, 'c2pa') === 'clear', 'valid C2PA is a clear check')
+assert(validC2pa.c2pa.issuer === 'Example CA', 'C2PA issuer is retained')
+assert(validC2pa.c2pa.claimGenerator === 'Example Tool 1.0', 'C2PA claim generator is retained')
+assert(validC2pa.c2pa.actions[0]?.action === 'c2pa.created', 'C2PA actions are retained')
+
+const invalidC2pa = await reportWithC2pa({
+  ...emptyC2paResult('invalid', 'c2pa-web', ['signature validation failed']),
+})
+assert(checkState(invalidC2pa, 'c2pa') === 'found', 'invalid C2PA is flagged')
+assert(reportStatus(invalidC2pa) === 'Known marker found', 'invalid C2PA affects report status')
 
 const stripped = await reportFor('\x00\x01\x02\xff')
 assert(checkState(stripped, 'structure') === 'warning', 'missing metadata markers are reported')
@@ -144,6 +194,7 @@ assert(certificate.file.sha256.length === 64, 'certificate includes SHA-256')
 assert(certificate.preview.type === 'browser-object-url', 'certificate includes preview reference')
 assert(certificate.checkedAt === '2026-05-20T00:00:00.000Z', 'certificate includes timestamp')
 assert(certificate.checks.length === generatorMetadata.checks.length, 'certificate includes check list')
+assert(certificate.c2pa?.state === generatorMetadata.c2pa.state, 'certificate includes C2PA report')
 assert(certificate.metadata?.presence === 'present', 'certificate includes metadata report')
 assert(
   certificate.limitations.some((entry) => entry.includes('does not prove human authorship')),
