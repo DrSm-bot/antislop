@@ -1,4 +1,10 @@
 import exifr from 'exifr'
+import {
+  c2paCheckDetail,
+  c2paStateToCheckState,
+  sniffC2paBytes,
+  type C2paVerificationResult,
+} from './c2pa.ts'
 
 export type CheckState = 'clear' | 'warning' | 'found'
 
@@ -21,6 +27,7 @@ export type AssetReport = {
   checkedAt: string
   previewUrl: string
   checks: MarkerCheck[]
+  c2pa: C2paVerificationResult
   metadata: MetadataReport
 }
 
@@ -94,6 +101,7 @@ export type AntiSlopCertificateV1 = {
   preview: CertificatePreview
   checkedAt: string
   checks: CertificateCheck[]
+  c2pa?: C2paVerificationResult
   metadata?: MetadataReport
   limitations: string[]
 }
@@ -105,6 +113,7 @@ export type AnalysisInput = {
   fileSize: number
   dimensions: string
   previewUrl: string
+  c2pa?: C2paVerificationResult
   checkedAt?: string
   id?: string
 }
@@ -171,7 +180,8 @@ export const CERTIFICATE_SCHEMA_VERSION = 1
 
 export const CERTIFICATE_LIMITATIONS = [
   'This report records local technical checks only and does not prove human authorship.',
-  'C2PA markers are detected as readable marker bytes; cryptographic signature validation is not included in this MVP.',
+  'C2PA validation uses @contentauth/c2pa-web in supported browser runtimes; unsupported formats and verifier failures are reported explicitly.',
+  'When the C2PA WASM verifier cannot run, AntiSlop falls back to marker-byte sniffing only and does not cryptographically validate signatures.',
   'Invisible watermark systems such as SynthID are not locally verifiable in this browser-only scan.',
   'Metadata can be stripped, edited, or absent after export, compression, screenshots, or social-media processing.',
 ] as const
@@ -372,19 +382,12 @@ export async function parseMetadata(bytes: ArrayBuffer, sample = decodeTextSampl
   } satisfies MetadataReport
 }
 
-export function detectC2pa(sample: string): MarkerCheck {
-  const found =
-    sample.includes('c2pa') ||
-    sample.includes('contentauthenticity') ||
-    sample.includes('content credentials')
-
+export function detectC2pa(result: C2paVerificationResult): MarkerCheck {
   return {
     id: 'c2pa',
     label: 'C2PA / Content Credentials',
-    state: found ? 'warning' : 'clear',
-    detail: found
-      ? 'Possible C2PA manifest bytes found. Full signature validation is planned for the WASM verifier module.'
-      : 'No C2PA marker bytes found in the local file scan.',
+    state: c2paStateToCheckState(result),
+    detail: c2paCheckDetail(result),
   }
 }
 
@@ -411,9 +414,9 @@ export function detectStructure(fileType: string, sample: string): MarkerCheck {
   }
 }
 
-export function buildChecks(fileType: string, sample: string) {
+export function buildChecks(fileType: string, sample: string, c2pa = sniffC2paBytes(sample, fileType)) {
   return [
-    detectC2pa(sample),
+    detectC2pa(c2pa),
     detectSynthIdSupport(),
     detectStructure(fileType, sample),
   ]
@@ -421,6 +424,7 @@ export function buildChecks(fileType: string, sample: string) {
 
 export async function analyzeBytes(input: AnalysisInput): Promise<AssetReport> {
   const sample = decodeTextSample(input.bytes)
+  const c2pa = input.c2pa ?? sniffC2paBytes(sample, input.fileType)
   const metadata = await parseMetadata(input.bytes, sample)
 
   return {
@@ -432,7 +436,8 @@ export async function analyzeBytes(input: AnalysisInput): Promise<AssetReport> {
     hash: await sha256Hex(input.bytes),
     checkedAt: input.checkedAt ?? new Date().toISOString(),
     previewUrl: input.previewUrl,
-    checks: buildChecks(input.fileType, sample),
+    checks: buildChecks(input.fileType, sample, c2pa),
+    c2pa,
     metadata,
   }
 }
@@ -504,6 +509,7 @@ export function buildCertificate(report: AssetReport): AntiSlopCertificateV1 {
       state: check.state,
       detail: check.detail,
     })),
+    c2pa: report.c2pa,
     metadata: report.metadata,
     limitations: [...CERTIFICATE_LIMITATIONS],
   }

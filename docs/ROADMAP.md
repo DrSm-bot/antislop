@@ -30,10 +30,11 @@ The MVP is complete when a user can:
 
 ### 3. C2PA Verification
 
-- Integrate the Content Authenticity Initiative C2PA browser/WASM stack.
+- Integrated the current Content Authenticity Initiative browser/WASM stack through `@contentauth/c2pa-web`.
 - Validate manifests where possible instead of byte-sniffing only.
 - Show issuer, claim generator, actions, validation state, and manifest errors.
 - Keep unsupported or stripped C2PA states explicit.
+- Remaining work: add committed public signed C2PA fixtures to exercise real valid/invalid manifests in CI.
 
 ### 4. Certificate Export
 

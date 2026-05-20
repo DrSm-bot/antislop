@@ -1,4 +1,5 @@
 import { analyzeBytes, type AssetReport } from '../core/analysis'
+import { verifyC2paInBrowser } from './c2paWebAdapter'
 
 const formatter = new Intl.NumberFormat('en')
 
@@ -18,6 +19,7 @@ export async function imageDimensions(file: File) {
 export async function analyzeImageFile(file: File): Promise<AssetReport> {
   const bytes = await file.arrayBuffer()
   const previewUrl = URL.createObjectURL(file)
+  const c2pa = await verifyC2paInBrowser(bytes, file.type || 'unknown')
 
   return analyzeBytes({
     bytes,
@@ -26,5 +28,6 @@ export async function analyzeImageFile(file: File): Promise<AssetReport> {
     fileSize: file.size,
     dimensions: file.type.startsWith('image/') ? await imageDimensions(file) : 'not an image',
     previewUrl,
+    c2pa,
   })
 }
