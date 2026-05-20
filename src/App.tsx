@@ -372,7 +372,7 @@ function App() {
                 max={queueProgress.total || 1}
                 aria-label="Batch scan progress"
               />
-              <span>{queueProgress.currentFile ?? 'Preparing batch...'}</span>
+              <span title={queueProgress.currentFile}>{queueProgress.currentFile ?? 'Preparing batch...'}</span>
             </div>
           ) : null}
 
