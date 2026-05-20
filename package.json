@@ -8,6 +8,7 @@
     "dev": "vite",
     "build": "tsc -b && vite build",
     "lint": "eslint .",
+    "test": "node --experimental-strip-types src/core/analysis.test.ts",
     "preview": "vite preview"
   },
   "dependencies": {
